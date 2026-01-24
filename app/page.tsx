@@ -6,7 +6,7 @@ const Page = () => {
     <div>
       <h1 className='text-2xl underline '>Welcome to my saas</h1>
       <Button>
-        
+        Lets get started
       </Button>
     </div>
   )
