@@ -3,11 +3,9 @@
 import Image from "next/image"
 import Link from "next/link"
 import NavItems from "./NavItems"
-import { usePathname } from "next/navigation"
 
 const Navbar = () => {
 
-    const PathName = usePathname();
 
   return (
     <nav className="navbar">
