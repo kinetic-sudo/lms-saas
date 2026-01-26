@@ -109,7 +109,7 @@ const CompanionForm = () => {
           key={subject}
           className="capitalize"
         >
-        {subjects}
+        {subject}
        </SelectItem>
     ))}
     </SelectContent>
