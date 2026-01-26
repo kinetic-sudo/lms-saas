@@ -20,7 +20,9 @@ const NavItems = () => {
             <Link href={href} key={label} className={cn(PathName === href && "text-primary font-semibold")}>
                 {label}
             </Link>
+            
         ))}
+        
         <div >
 
         </div>
