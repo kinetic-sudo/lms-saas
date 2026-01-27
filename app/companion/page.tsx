@@ -10,13 +10,16 @@ const CompanionLibrary = async ({ searchParams }: SearchParams) => {
   const topic = filters.topic ? filters.topic : '';
 
 
+
+
+
   const companions = await getAllCompanions({ subject, topic });
 
   console.log('companionLib', companions)
 
   return (
     <main>
-      <section className="flex justify-between gap-4 max-sm: flex-col">
+      <section className="flex justify-between gap-4 max-sm:flex-col">
         <h1>Companion Library</h1>
         <div className="flex gap-4">
           <SearchInput />
