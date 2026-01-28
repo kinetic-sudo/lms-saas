@@ -222,6 +222,7 @@ const CompanionForm = () => {
                             </FieldLabel>
                             <Input
                                 {...field}
+                                onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value, 10) : '')}
                                 className="input"
                                 type="number"
                                 id="form-rhf-demo-title"
