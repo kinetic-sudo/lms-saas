@@ -143,7 +143,10 @@ const CompanionComponent = ({ companionId, subject, topic, name, userName, userI
                         if(message.role === 'assistant') {
                             return (
                                 <p key={message.content} className='max-sm:text-sm'>
-                                   {name.split(' ') [0].replace('/[.,]/g ', "")
+                                   {
+                                   name
+                                   .split(' ')[0]
+                                   .replace('/[.,]/g ', '')
                                    }: {message.content}
                                 </p>
                             )
