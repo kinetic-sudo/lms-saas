@@ -11,9 +11,9 @@ const SubjectFilter = () => {
     const pathname =  usePathname();
     const router = useRouter();
     const searchParams = useSearchParams();
-    const subjecQuery = searchParams.get('subject') || ''
+    const subjecQuery = searchParams.get('subject') || 'all'
 
-    const [searchQuery, setSearchQuery] = useState(subjecQuery)
+    const [subject, setSubject] = useState(subjecQuery)
 
 
 
@@ -21,8 +21,8 @@ const SubjectFilter = () => {
         const delayDebouncefn = setTimeout(() => {
             const params = new URLSearchParams(searchParams.toString())
             
-                    if(searchQuery) {
-                        params.set('subject', searchQuery)
+                    if(subject && subject !== 'all') {
+                        params.set('subject', subject)
                     } else (
                         params.delete('subject')
                     )
@@ -33,27 +33,22 @@ const SubjectFilter = () => {
         }, 300)
 
         return () => clearTimeout(delayDebouncefn)
-     }, [router, searchQuery, pathname])
+     }, [subject, router, pathname])
 
   return (
-        <Select onValueChange={setSearchQuery} value={searchQuery}>
-            <SelectTrigger className='w-full max-w-48 border border-black rounded-lg'>
-                
-                <SelectValue placeholder="Select Subject"/>
-
-            </SelectTrigger>
-            <SelectContent >
-                {subjects.map((subject) => (
-                    <SelectItem
-                     value={subject}
-                     key={subject}
-                     className='capitalize'
-                    >
-                        {subject}
-                   </SelectItem>
-                ))}
-            </SelectContent>
-        </Select>
+    <Select onValueChange={setSubject} value={subject}>
+    <SelectTrigger className='input capitalize'>
+        <SelectValue placeholder="Select Subject"/>
+    </SelectTrigger>
+    <SelectContent position="popper" sideOffset={5}>
+        <SelectItem value='all'>All subjects</SelectItem>
+        {subjects.map((subject) => (
+            <SelectItem key={subject} value={subject} className='capitalize'>
+                {subject}
+            </SelectItem>
+        ))}
+    </SelectContent>
+</Select>
 
   )
 }
