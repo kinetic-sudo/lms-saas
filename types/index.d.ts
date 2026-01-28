@@ -67,6 +67,7 @@ interface Avatar {
 
 
 interface SavedMessage {
+  id: string;
   role: "user" | "system" | "assistant";
   content: string;
 }
