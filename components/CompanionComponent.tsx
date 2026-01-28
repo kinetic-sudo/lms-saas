@@ -147,6 +147,10 @@ const CompanionComponent = ({ companionId, subject, topic, name, userName, userI
                                    }: {message.content}
                                 </p>
                             )
+                        } else {
+                            <p key={message.content} className='text-primary mx-sm:text-sm'>
+                                {userName} : {message.content}
+                            </p>
                         }
                     })}
                 </div>
