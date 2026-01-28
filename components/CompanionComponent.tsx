@@ -1,6 +1,6 @@
 'use client'
 
-import { cn, getSubjectColor } from '@/lib/utils'
+import { cn, configureAssistant, getSubjectColor } from '@/lib/utils'
 import { vapi } from '@/lib/vapi.sdk';
 import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react'
@@ -22,6 +22,7 @@ const CompanionComponent = ({ companionId, subject, topic, name, userName, userI
     const [callStatus, setCallStatus] = useState<CallStatus>(CallStatus.INACTIVE);
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [isMuted, setIsMuted] = useState(false)
+    const [messages, setMessage] = useState<SavedMessage[]>([])
 
     const lottieRef = useRef<LottieRefCurrentProps>(null);
 
@@ -40,7 +41,13 @@ const CompanionComponent = ({ companionId, subject, topic, name, userName, userI
 
         const onCallEnd = () => setCallStatus(CallStatus.FINISHED)
 
-        const onMessage = () => { }
+        const onMessage = (message: Message) => { 
+            if(message.type === 'transcript' && message.transcriptType === 'final' ) {
+                const newMessage = {role: message.role, content: message.transcript}
+                setMessage((prev) => [newMessage, ...prev,])
+
+            }
+        }
 
         const onSpeechStart = () => setIsSpeaking(true)
 
@@ -72,11 +79,25 @@ const CompanionComponent = ({ companionId, subject, topic, name, userName, userI
     }
 
     const handleCall = async () => {
+        setCallStatus(CallStatus.CONNECTING) 
+
+        const assistantOverides = {
+            variableValues : {
+                subject, topic, style
+             },
+             clientMessages: ['transcript'],
+             serverMessages: []
+        }
+
+        //@ts-expect-error
+        vapi.start(configureAssistant(voice, style), assistantOverides)
 
     }
 
     const handleDisconnect = async () => {
+        setCallStatus(CallStatus.FINISHED)
 
+        vapi.stop()
     }
 
     return (
@@ -86,7 +107,7 @@ const CompanionComponent = ({ companionId, subject, topic, name, userName, userI
                     <div className='companion-avatar' style={{ backgroundColor: getSubjectColor(subject) }}>
                         <div className={cn('absolute transition-opacity duration-1000', 
                             callStatus === CallStatus.FINISHED || callStatus === CallStatus.INACTIVE ? 'opacity-1001' : 'opacity-0',
-                            callStatus === CallStatus.CONNECTING && 'opacity=100 animate-pulse')}>
+                             callStatus === CallStatus.CONNECTING && 'opacity=100 animate-pulse')}>
                             <Image src={`/icons/${subject}.svg`} alt={subject} width={150} height={150} className='max-sm:w-fit' />
                         </div>
                         <div className={cn('absolute transition-opactiy duration-1000', callStatus === CallStatus.ACTIVE ? "opacity-100" : 'opacity-0')}>
@@ -115,7 +136,21 @@ const CompanionComponent = ({ companionId, subject, topic, name, userName, userI
                         {callStatus === CallStatus.ACTIVE ? 'end session' : callStatus === CallStatus.CONNECTING ? "Connecting" : "start Session"}
                     </button>
                 </div>
-                <div>
+            </section>
+            <section className='transcript'>
+                <div className="transcript-message no-scrollbar">
+                    {messages.map((message) => {
+                        if(message.role === 'assistant') {
+                            return (
+                                <p key={message.content} className='max-sm:text-sm'>
+                                   {name.split(' ') [0].replace('/[.,]/g ', "")
+                                   }: {message.content}
+                                </p>
+                            )
+                        }
+                    })}
+                </div>
+                <div className="transcript-fade">
 
                 </div>
             </section>
