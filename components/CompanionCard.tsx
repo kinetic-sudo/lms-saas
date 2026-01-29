@@ -1,4 +1,5 @@
 import Link from "next/link"
+import Image from "next/image"
 
 interface CompanionCardProps {
     id: string
@@ -7,28 +8,42 @@ interface CompanionCardProps {
     subject: string
     duration: number
     color: string
-    
 }
 
 const CompanionCard = ({id, name, topic, subject, duration, color} : CompanionCardProps) => {
   return (
-    <article className="companion-card" style={{background: color}}>
-        <div className="flex justify-between items-center">
+    <article 
+    className="companion-card min-w-[300px]" 
+    style={{
+        // "color-mix" creates a solid pastel tint (no transparency issues)
+        // This matches the "creamy" look of the design
+        backgroundColor: `color-mix(in srgb, ${color}, white 85%)`,
+        // Make the border slightly darker than the background for definition
+        borderColor: `color-mix(in srgb, ${color}, white 80%)`
+    }} 
+> 
+        <div className="flex justify-between items-start mb-2">
             <div className='subject-badge'>
                 {subject}
             </div>
+            {/* Using simple text/icon for bookmark to match clean look */}
             <button className="companion-bookmark">
-                <img src="/icons/bookmark.svg" alt="bookmark" width={12.5} height={15}/>
+                <Image src="/icons/bookmark.svg" alt="bookmark" width={16} height={16} />
             </button>
         </div>
-        <h2 className="text-2xl font-bold">{name}</h2>
-        <p className="text-sm">{topic}</p>
-        <div className="flex items-center gap-2">
-            <img src="/icons/clock.svg" alt="duration" width={13.5} height={13.5}/>
-            <p className="text-sm">{duration} Minutes</p>
+
+        <div className="flex flex-col gap-1">
+            <h2 className="text-3xl font-bold tracking-tight">{name}</h2>
+            <p className="text-black italic font-medium">{topic}</p>
         </div>
-        <Link href={`/companion/${id}`} className="w-full" >
-          <button className="btn-primary w-full justify-center">
+
+        <div className="flex items-center gap-2 mt-1 mb-4">
+            <Image src="/icons/clock.svg" alt="duration" width={14} height={14} />
+            <p className="text-black text-sm font-semibold">{duration} Minutes</p>
+        </div>
+
+        <Link href={`/companion/${id}`} className="w-full mt-auto" >
+          <button className="btn-primary">
             Launch Lesson 
           </button>
         </Link>

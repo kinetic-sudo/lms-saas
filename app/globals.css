@@ -131,17 +131,27 @@ body {
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-white text-[#111111]; /* Enforce white bg/dark text */
   }
   main {
-    @apply mx-auto px-14 flex flex-col gap-8 bg-background h-full max-w-[1400px] pt-10 max-sm:px-2;
+    /* Updated layout container */
+    @apply mx-auto px-6 py-8 flex flex-col gap-10 bg-white min-h-screen max-w-[600px] md:max-w-[1200px];
   }
   h1 {
-    @apply text-3xl font-bold;
+    @apply text-2xl font-bold;
   }
 }
 
 @layer components {
+  .section-header {
+    @apply flex justify-between items-end mb-4 px-1;
+  }
+  .section-title {
+    @apply text-xl font-bold text-black;
+  }
+  .section-link {
+    @apply text-gray-400 text-sm font-medium hover:text-black transition-colors cursor-pointer;
+  }
   .home-section {
     @apply flex gap-4 justify-between items-start w-full max-lg:flex-col-reverse max-lg:items-center;
   }
@@ -149,11 +159,23 @@ body {
     @apply flex flex-wrap gap-4 w-full max-md:justify-center;
   }
   .companion-card {
-    @apply flex flex-col rounded-4xl border border-black px-4 py-4 gap-5 w-full min-lg:max-w-[410px] justify-between;
+    /* Added subtle border and big radius */
+    @apply flex flex-col rounded-[2.5rem] p-6 gap-4 w-full md:max-w-[350px] border border-gray-100 relative overflow-hidden transition-all hover:shadow-lg;
   }
   .subject-badge {
-    @apply bg-black text-white rounded-4xl text-sm px-2 py-1 capitalize;
+    @apply bg-black text-white rounded-full text-[10px] font-bold px-3 py-1.5 uppercase tracking-wider w-fit;
   }
+
+  .recent-list-container {
+    @apply flex flex-col gap-3 w-full;
+  }
+  .recent-item {
+    @apply flex items-center justify-between p-4 rounded-[1.5rem] border border-gray-100 hover:border-gray-300 transition-all bg-white cursor-pointer hover:shadow-sm;
+  }
+  .recent-icon-box {
+    @apply size-12 rounded-2xl flex items-center justify-center text-xl font-bold;
+  }
+
   .companion-bookmark {
     @apply px-2 bg-black rounded-4xl flex items-center h-full aspect-square cursor-pointer;
   }
@@ -164,13 +186,19 @@ body {
     @apply rounded-4xl border border-black;
   }
   .cta-section {
-    @apply bg-cta text-white rounded-4xl px-7 py-10 flex flex-col items-center text-center gap-5 w-1/3 max-lg:w-1/2 max-md:w-full;
+    @apply bg-[#1c1c1e] text-white rounded-[2.5rem] px-8 py-12 flex flex-col items-center text-center gap-6 w-full relative overflow-hidden mt-4;
   }
   .cta-badge {
-    @apply bg-cta-gold rounded-4xl px-3 py-1.5 text-black;
+    @apply bg-[#FCCC41] rounded-full px-4 py-1.5 text-xs font-bold text-black uppercase tracking-wide;
   }
   .btn-primary {
-    @apply bg-primary text-white rounded-xl cursor-pointer px-4 py-2 flex items-center gap-2;
+    /* Dark button for light cards */
+    @apply bg-[#1c1c1e] text-white rounded-2xl cursor-pointer px-6 py-4 w-full flex items-center justify-center font-bold text-sm transition-transform active:scale-95;
+  }
+  
+  .btn-outline-add {
+    /* The outline button in the CTA */
+    @apply border border-white/20 hover:bg-white/10 text-white rounded-full px-6 py-3 flex items-center gap-2 cursor-pointer transition-colors;
   }
   .navbar {
     @apply flex items-center justify-between mx-auto w-full px-14 py-4 bg-white max-sm:px-4;
