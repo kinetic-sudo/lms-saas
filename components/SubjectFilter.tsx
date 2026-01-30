@@ -1,58 +1,52 @@
 'use client'
 
-import { Select, SelectContent, SelectItem, SelectValue, SelectTrigger } from './ui/select'
 import { subjects } from '@/constants'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { useState, useEffect } from 'react'
-
+import { cn } from '@/lib/utils'
 
 const SubjectFilter = () => {
-
     const pathname =  usePathname();
     const router = useRouter();
     const searchParams = useSearchParams();
-    const subjecQuery = searchParams.get('subject') || 'all'
+    const currentSubject = searchParams.get('subject') || 'all'
 
-    const [subject, setSubject] = useState(subjecQuery)
+    const handleSelect = (value: string) => {
+        const params = new URLSearchParams(searchParams.toString())
+        
+        if(value && value !== 'all') {
+            params.set('subject', value)
+        } else {
+            params.delete('subject')
+        }
 
+        const queryString = params.toString()
+        router.push(queryString ? `${pathname}?${queryString}` : pathname)
+    }
 
+    const allOptions = ['all', ...subjects];
 
-    useEffect(() => {
-        const delayDebouncefn = setTimeout(() => {
-            const params = new URLSearchParams(searchParams.toString())
-            
-                    if(subject && subject !== 'all') {
-                        params.set('subject', subject)
-                    } else (
-                        params.delete('subject')
-                    )
-
-                    const queryString = params.toString()
-                    router.push(queryString ? `${pathname}?${queryString}` : pathname)
-
-        }, 300)
-
-        return () => clearTimeout(delayDebouncefn)
-     }, [subject, router, pathname])
-
-  return (
-    <Select onValueChange={setSubject} value={subject}>
-    <SelectTrigger className='input capitalize'>
-        <SelectValue placeholder="Select Subject"/>
-    </SelectTrigger>
-    <SelectContent position="popper" sideOffset={5}>
-        <SelectItem value='all'>All subjects</SelectItem>
-        {subjects.map((subject) => (
-            <SelectItem key={subject} value={subject} className='capitalize'>
-                {subject}
-            </SelectItem>
-        ))}
-    </SelectContent>
-</Select>
-
-  )
+    return (
+        <div className="flex flex-wrap gap-2">
+            {allOptions.map((item) => {
+                const isActive = (item === 'all' && !searchParams.get('subject')) || currentSubject === item;
+                
+                return (
+                    <button
+                        key={item}
+                        onClick={() => handleSelect(item)}
+                        className={cn(
+                            "px-4 py-2 rounded-full text-xs font-bold capitalize transition-all border",
+                            isActive 
+                                ? "bg-black text-white border-black" 
+                                : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                        )}
+                    >
+                        {item === 'all' ? 'All Subjects' : item}
+                    </button>
+                )
+            })}
+        </div>
+    )
 }
 
 export default SubjectFilter
-
-

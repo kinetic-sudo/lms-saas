@@ -3,6 +3,7 @@
 import { usePathname, useSearchParams, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
+import { Search } from 'lucide-react' // Recommend using Lucide icons if available, otherwise Image is fine
 
 const SearchInput = () => {
     const pathname = usePathname();
@@ -31,11 +32,15 @@ const SearchInput = () => {
     }, [searchQuery, router,  pathname])
 
   return (
-    <div className='relative border border-black rounded-lg items-center flex gap-2 px-2 py-1 h-fit '>
-        <Image src="/icons/search.svg" alt='search' width={15} height={15} />
+    <div className='relative flex items-center w-full md:w-[300px]'>
+        {/* Icon positioned absolute */}
+        <div className="absolute left-4 opacity-40">
+            <Image src="/icons/search.svg" alt='search' width={16} height={16} />
+        </div>
+        
         <input 
-         placeholder='Search companion' 
-         className='outline-none' 
+         placeholder='Search companions...' 
+         className='w-full bg-slate-100 border-none outline-none focus:ring-2 focus:ring-black/5 rounded-full py-3 pl-11 pr-4 text-sm font-medium transition-all placeholder:text-slate-400' 
          value={searchQuery} 
          onChange={(e) => setSearchQuery(e.target.value)}
          />
