@@ -7,7 +7,8 @@ import { usePathname } from "next/navigation"
 const navItems = [
     {label: "Home", href: "/"},
     {label: "Companion", href: '/companion'},
-    {label: 'My journey', href: "/my-journey"}
+    {label: 'My journey', href: "/my-journey"},
+    {label: 'Upgrade', href: '/Subscription'}
 ]
 
 // Allow custom classes to handle mobile layout

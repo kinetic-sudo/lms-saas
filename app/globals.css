@@ -246,7 +246,76 @@ body {
   .transcript-fade {
     @apply pointer-events-none absolute bottom-0 left-0 right-0 h-40 max-sm:h-20 bg-gradient-to-t from-background via-background/90 to-transparent z-10;
   }
+  /* --- CLERK PRICING TABLE OVERRIDES --- */
+
+  /* 1. BASIC PLAN (1st Card) - Pastel Pink */
+  .cl-plan-card:nth-child(1) {
+    background-color: #FFF0F0 !important;
+    border-color: #FFC0CB !important;
+  }
+  /* Color the checkmark icon for Card 1 */
+  .cl-plan-card:nth-child(1) .cl-plan-feature svg {
+    color: #EC4899; 
+    background: white;
+    border-radius: 50%;
+    padding: 2px; /* Makes the white circle visible */
+    box-sizing: content-box;
+  }
+
+
+  /* 2. PRO PLAN (2nd Card) - Pastel Yellow + Popular Badge */
+  .cl-plan-card:nth-child(2) {
+    background-color: #FFFBEB !important;
+    border: 2px solid #111111 !important;
+    box-shadow: 0 10px 40px -15px rgba(252, 204, 65, 0.3);
+    position: relative;
+    z-index: 10;
+  }
+  /* Popular Badge (CSS Pseudo-element) */
+  .cl-plan-card:nth-child(2)::after {
+    content: "POPULAR";
+    position: absolute;
+    top: 2rem;
+    right: 2rem;
+    background-color: #111111;
+    color: #FCCC41;
+    font-size: 10px;
+    font-weight: 900;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    letter-spacing: 0.05em;
+    pointer-events: none;
+  }
+  /* Color the checkmark icon for Card 2 */
+  .cl-plan-card:nth-child(2) .cl-plan-feature svg {
+    color: #CA8A04;
+    background: white;
+    border-radius: 50%;
+    padding: 2px;
+    box-sizing: content-box;
+  }
+
+
+  /* 3. ELITE PLAN (3rd Card) - Pastel Violet */
+  .cl-plan-card:nth-child(3) {
+    background-color: #F5F3FF !important;
+    border-color: #E9D5FF !important;
+  }
+  /* Color the checkmark icon for Card 3 */
+  .cl-plan-card:nth-child(3) .cl-plan-feature svg {
+    color: #8B5CF6;
+    background: white;
+    border-radius: 50%;
+    padding: 2px;
+    box-sizing: content-box;
+  }
+  
+  /* Fix button visibility if needed */
+  .cl-plan-card button {
+    margin-top: auto;
+  }
 }
+
 
 @layer utilities {
   .no-scrollbar::-webkit-scrollbar {
