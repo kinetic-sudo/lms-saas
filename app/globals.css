@@ -132,6 +132,8 @@ body {
   }
   body {
     @apply bg-white text-[#111111]; /* Enforce white bg/dark text */
+
+    @apply pt-20;
   }
   main {
     /* Updated layout container */
