@@ -130,7 +130,7 @@ const CompanionComponent = ({ companionId, subject, topic, name, userName, userI
                                 "size-[200px] rounded-[3rem] flex items-center justify-center transition-all",
                                 callStatus === CallStatus.CONNECTING && "animate-pulse scale-105"
                             )}
-                            style={{ backgroundColor: `${getSubjectColor(subject)}15` }}
+                            style={{ backgroundColor: `${getSubjectColor(subject)}70` }}
                         >
                              <Image src={`/icons/${subject}.svg`} alt={subject} width={100} height={100} />
                         </div>

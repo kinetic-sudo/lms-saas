@@ -29,7 +29,7 @@ const CompanionSession = async ({ params }: CompanionSessionPageProps) => {
           <div className="flex items-center gap-4">
              <div 
                className="size-10 rounded-full flex items-center justify-center bg-opacity-10"
-               style={{backgroundColor: `${getSubjectColor(subject)}20`}}
+               style={{backgroundColor: `${getSubjectColor(subject)}35`}}
              >
                 <Image src={`/icons/${subject}.svg`} alt={subject} width={20} height={20}/>
              </div>
