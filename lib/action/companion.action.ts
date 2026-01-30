@@ -3,6 +3,8 @@
 import { auth } from "@clerk/nextjs/server"
 import { CreateSupabaseClient } from "../supabase";
 
+export const dynamic = "force-dynamic";
+
 export const createCompanion = async (formData: CreateCompanion) => {
     const { userId: author } = await auth();
     const supabase = CreateSupabaseClient();
