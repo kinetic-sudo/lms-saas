@@ -10,11 +10,12 @@ const navItems = [
     {label: 'My journey', href: "/my-journey"}
 ]
 
-const NavItems = () => {
+// Allow custom classes to handle mobile layout
+const NavItems = ({ className }: { className?: string }) => {
     const PathName = usePathname();
 
     return (
-        <nav className='flex items-center gap-8'>
+        <nav className={cn("flex items-center gap-8", className)}>
             {navItems.map(({label, href}) => {
                 const isActive = PathName === href;
                 return (
@@ -27,9 +28,9 @@ const NavItems = () => {
                         )}
                     >
                         {label}
-                        {/* Active Indicator Dot (Optional, adds a nice touch) */}
                         {isActive && (
-                            <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-1 h-1 bg-black rounded-full"></span>
+                            // Only show dot on desktop (default) or handle via parent CSS
+                            <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-1 h-1 bg-black rounded-full hidden md:block"></span>
                         )}
                     </Link>
                 )
