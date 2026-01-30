@@ -7,8 +7,8 @@ import Link from 'next/link'
 import React from 'react'
 
 const Page = async () => {
-  const companions = await getAllCompanions({limit: 3}) // Image shows 2 visible
-  const recentSessionsCompanions = await getRecentSession(10)
+  const companions = await getAllCompanions({limit: 3}) 
+  const recentSessionsCompanions = await getRecentSession()
 
   return (
     <main>
