@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import CompanionCard from '@/components/CompanionCard'
 import CompanionList from '@/components/CompanionList'
 import CTA from '@/components/CTA'
@@ -7,9 +9,11 @@ import Link from 'next/link'
 import React from 'react'
 
 const Page = async () => {
+  
   const companions = await getAllCompanions({limit: 3}) 
   const recentSessionsCompanions = await getRecentSessionsForHome(3) // Only 3 for homepage
 
+  
   return (
     <main>
       {/* Popular Section */}
