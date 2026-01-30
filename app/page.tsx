@@ -1,14 +1,14 @@
 import CompanionCard from '@/components/CompanionCard'
 import CompanionList from '@/components/CompanionList'
 import CTA from '@/components/CTA'
-import { getAllCompanions, getRecentSession } from '@/lib/action/companion.action'
+import { getAllCompanions, getRecentSessionsForHome } from '@/lib/action/companion.action'
 import { getSubjectColor } from '@/lib/utils'
 import Link from 'next/link'
 import React from 'react'
 
 const Page = async () => {
   const companions = await getAllCompanions({limit: 3}) 
-  const recentSessionsCompanions = await getRecentSession()
+  const recentSessionsCompanions = await getRecentSessionsForHome(3) // Only 3 for homepage
 
   return (
     <main>
@@ -35,6 +35,8 @@ const Page = async () => {
         <CompanionList 
           title="Recently Completed"
           companions={recentSessionsCompanions}
+          showHistory={true} // Show history link on homepage
+          historyLink="/my-journey" // Link to my journey page
         />
         <CTA />
       </section>

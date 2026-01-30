@@ -81,7 +81,23 @@ export const getRecentSession = async ( limit = 10) => {
     if(error) throw new Error(error.message);
 
     return data.map(({ companion }) => companion);
+}
 
+export const getRecentSessionsForHome = async (limit = 3) => {
+    const { userId } = await auth();
+    if (!userId) return [];
+    
+    const supabase = CreateSupabaseClient();
+    const { data, error } = await supabase
+        .from('session_history')
+        .select(`companion:companion_id (*)`)
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(limit)
+
+    if(error) throw new Error(error.message);
+
+    return data.map(({ companion }) => companion);
 }
 
 export const getUserSessions = async ( userId: string ,limit = 10) => {
