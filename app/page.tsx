@@ -26,7 +26,7 @@ const Page = async () => {
           <Link href='/companion' className="section-link">See all</Link>
         </div>
         
-        <div className='flex gap-4 overflow-x-auto pb-4 no-scrollbar'>
+        <div className='flex flex-col md:flex-row items-start md:items-center gap-4 overflow-x-auto pb-4 no-scrollbar '>
           {companions && companions.length > 0 ? (
             companions.map((companion) => (
               <CompanionCard 

@@ -1,6 +1,6 @@
 'use server'
 
-import { auth } from "@clerk/nextjs/server"
+import { auth, currentUser } from "@clerk/nextjs/server"
 import { CreateSupabaseClient } from "../supabase";
 import { DUMMY_COMPANIONS } from "../../constants/index";
 
@@ -232,4 +232,151 @@ export const NewCompanionPermissions = async () => {
     const companionCount = data?.length || 0;
 
     return companionCount < limit;
+}
+
+// Check if user has permission to save conversation history 
+//  Only available for Intermediate Learner and Pro Companion plans
+
+export const hasConversationHistoryPermission = async () => {
+   const { userId, has } = await auth();
+   const user = await currentUser();
+   
+   if (!userId || !user) return false;
+   
+   // Check for paid plans
+   if (has({ plan: 'pro' }) || has({ plan: 'intermediate' })) {
+       return true;
+   }
+   
+   return false;
+}
+
+// Save or update conversation history
+export const saveConversationHistory = async (
+    companionId: string, 
+    messages: ConversationMessage[]
+) => {
+    const { userId } = await auth();
+    
+    if (!userId) throw new Error('User not authenticated');
+    
+    // Check permission
+    const hasPermission = await hasConversationHistoryPermission();
+    if (!hasPermission) {
+        throw new Error('Conversation history is only available for Intermediate and Pro plans');
+    }
+    
+    const supabase = CreateSupabaseClient();
+    
+    // Check if conversation already exists
+    const { data: existingConversation } = await supabase
+        .from('conversation_history')
+        .select(`companion:companion_id (*)`)
+        .eq('user_id', userId)
+        .single();
+    
+    if (existingConversation) {
+        // Update existing conversation
+        const { data, error } = await supabase
+            .from('conversation_history')
+            .update({
+                messages: messages,
+                last_message_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            })
+            .eq('companion:companion_id (*)', existingConversation.companion)
+            .select();
+        
+        if (error) throw new Error(error.message);
+        return data[0];
+    } else {
+        // Create new conversation
+        const { data, error } = await supabase
+            .from('conversation_history')
+            .insert({
+                user_id: userId,
+                companion_id: companionId,
+                messages: messages,
+                last_message_at: new Date().toISOString()
+            })
+            .select();
+        
+        if (error) throw new Error(error.message);
+        return data[0];
+    }
+}
+
+// Get conversation history for a specific companion
+export const getConversationHistory = async (companionId: string) => {
+    const { userId } = await auth();
+    
+    if (!userId) return null;
+    
+    // Check permission
+    const hasPermission = await hasConversationHistoryPermission();
+    if (!hasPermission) return null;
+    
+    const supabase = CreateSupabaseClient();
+    
+    const { data, error } = await supabase
+        .from('conversation_history')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('companion_id', companionId)
+        .single();
+    
+    if (error) {
+        if (error.code === 'PGRST116') {
+            // No conversation found - this is okay
+            return null;
+        }
+        throw new Error(error.message);
+    }
+    
+    return data;
+}
+
+// Delete conversation history
+export const deleteConversationHistory = async (companionId: string) => {
+    const { userId } = await auth();
+    
+    if (!userId) throw new Error('User not authenticated');
+    
+    const supabase = CreateSupabaseClient();
+    
+    const { error } = await supabase
+        .from('conversation_history')
+        .delete()
+        .eq('user_id', userId)
+        .eq('companion_id', companionId);
+    
+    if (error) throw new Error(error.message);
+    
+    return { success: true };
+}
+
+// Get all conversation histories for user
+export const getAllConversationHistories = async () => {
+    const { userId } = await auth();
+    
+    if (!userId) return [];
+    
+    // Check permission
+    const hasPermission = await hasConversationHistoryPermission();
+    if (!hasPermission) return [];
+    
+    const supabase = CreateSupabaseClient();
+    
+    const { data, error } = await supabase
+        .from('conversation_history')
+        .select(`
+            *,
+            companion:companion_id (*)
+        `)
+        .eq('user_id', userId)
+        .order('last_message_at', { ascending: false });
+    
+    if (error) throw new Error(error.message);
+    
+    return data;
 }

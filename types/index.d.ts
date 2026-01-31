@@ -17,6 +17,23 @@ enum Subject {
   business = "business",
 }
 
+interface ConversationMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+}
+
+interface ConversationHistory {
+  id: string;
+  session_id?: string;
+  user_id: string;
+  companion_id: string;
+  messages: ConversationMessage[];
+  last_message_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
 
 
 type Companion = Models.DocumentList<Models.Document> & {

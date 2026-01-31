@@ -37,8 +37,8 @@ const CompanionLibrary = async ({ searchParams }: SearchParams) => {
                 These are sample companions. Create your own to get started!
               </p>
             </div>
-            <Link href="/companion/new">
-              <button className="bg-black text-white px-4 py-2 rounded-lg font-bold text-sm  transition">
+            <Link href="/companion/new" >
+              <button className="bg-black text-white px-4 py-2 rounded-lg font-bold text-sm ml-3 transition">
                 Create Companion
               </button>
             </Link>
