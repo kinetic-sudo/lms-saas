@@ -7,6 +7,37 @@ export const subjects = [
   "economics",
 ];
 
+// lib/constants/dummyData.ts
+export const DUMMY_COMPANIONS = [
+  {
+    id: 'dummy-1',
+    name: 'Math Explorer',
+    topic: 'Learn Algebra & Geometry',
+    subject: 'maths',
+    duration: 45,
+    author: 'system',
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 'dummy-2',
+    name: 'Code Master',
+    topic: 'Introduction to Programming',
+    subject: 'coding',
+    duration: 60,
+    author: 'system',
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 'dummy-3',
+    name: 'Science Guide',
+    topic: 'Physics & Chemistry Basics',
+    subject: 'science',
+    duration: 50,
+    author: 'system',
+    created_at: new Date().toISOString()
+  }
+];
+
 export const subjectsColors = {
   science: "#E5D0FF",
   maths: "#FFDA6E",

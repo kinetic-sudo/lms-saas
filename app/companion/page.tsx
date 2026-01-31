@@ -3,6 +3,7 @@ import SearchInput from "@/components/SearchInput";
 import SubjectFilter from "@/components/SubjectFilter";
 import { getAllCompanions } from "@/lib/action/companion.action";
 import { getSubjectColor } from "@/lib/utils";
+import Link from "next/link";
 
 const CompanionLibrary = async ({ searchParams }: SearchParams) => {
   const filters = await searchParams;
@@ -10,6 +11,7 @@ const CompanionLibrary = async ({ searchParams }: SearchParams) => {
   const topic = filters.topic ? filters.topic : '';
 
   const companions = await getAllCompanions({ subject, topic });
+  const hasDummyData = companions.some(c => c.id.startsWith('dummy-'));
 
   return (
     <main className="flex flex-col gap-8 w-full">
@@ -22,12 +24,32 @@ const CompanionLibrary = async ({ searchParams }: SearchParams) => {
             </div>
         </div>
         
-        {/* Filter Bar - Flex container for Search & Filter Pills */}
+        {/* Show message for new users */}
+        {hasDummyData && (
+          <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="bg-blue-500 text-white rounded-full p-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <p className="text-sm font-medium text-slate-700">
+                These are sample companions. Create your own to get started!
+              </p>
+            </div>
+            <Link href="/companion/new">
+              <button className="bg-blue-500 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-blue-600 transition">
+                Create Companion
+              </button>
+            </Link>
+          </div>
+        )}
+        
+        {/* Filter Bar */}
         <div className="flex flex-col md:flex-row gap-4 items-start md:items-center w-full border-b border-slate-100 pb-6">
             <div className="w-full md:w-auto">
                 <SubjectFilter />
             </div>
-             {/* Spacer to push search to right on large screens if desired, or keep left */}
             <div className="w-full md:w-auto md:ml-auto">
                 <SearchInput />
             </div>

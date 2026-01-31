@@ -11,25 +11,32 @@ interface CompanionCardProps {
 }
 
 const CompanionCard = ({id, name, topic, subject, duration, color} : CompanionCardProps) => {
+  const isDummy = id.startsWith('dummy-');
+
   return (
     <article 
-    className="companion-card min-w-[300px]" 
-    style={{
-        // "color-mix" creates a solid pastel tint (no transparency issues)
-        // This matches the "creamy" look of the design
-        backgroundColor: `color-mix(in srgb, ${color}, white 85%)`,
-        // Make the border slightly darker than the background for definition
-        borderColor: `color-mix(in srgb, ${color}, white 80%)`
-    }} 
-> 
+      className="companion-card min-w-[300px] relative" 
+      style={{
+          backgroundColor: `color-mix(in srgb, ${color}, white 85%)`,
+          borderColor: `color-mix(in srgb, ${color}, white 80%)`
+      }} 
+    > 
+        {/* Sample badge for dummy companions */}
+        {/* {isDummy && (
+          <div className="absolute top-4 right-4 bg-slate-900 text-white text-[10px] font-black px-2 py-1 rounded-full uppercase tracking-wider">
+            Sample
+          </div>
+        )} */}
+
         <div className="flex justify-between items-start mb-2">
             <div className='subject-badge'>
                 {subject}
             </div>
-            {/* Using simple text/icon for bookmark to match clean look */}
-            <button className="companion-bookmark">
-                <Image src="/icons/bookmark.svg" alt="bookmark" width={16} height={16} />
-            </button>
+            {!isDummy && (
+              <button className="companion-bookmark">
+                  <Image src="/icons/bookmark.svg" alt="bookmark" width={16} height={16} />
+              </button>
+            )}
         </div>
 
         <div className="flex flex-col gap-1">
@@ -42,11 +49,19 @@ const CompanionCard = ({id, name, topic, subject, duration, color} : CompanionCa
             <p className="text-black text-sm font-semibold">{duration} Minutes</p>
         </div>
 
-        <Link href={`/companion/${id}`} className="w-full mt-auto" >
-          <button className="btn-primary">
-            Launch Lesson 
-          </button>
-        </Link>
+        {isDummy ? (
+          <Link href="/companion/new" className="w-full mt-auto">
+            <button className="btn-primary">
+              Create Your Own
+            </button>
+          </Link>
+        ) : (
+          <Link href={`/companion/${id}`} className="w-full mt-auto">
+            <button className="btn-primary">
+              Launch Lesson 
+            </button>
+          </Link>
+        )}
     </article>
   )
 }

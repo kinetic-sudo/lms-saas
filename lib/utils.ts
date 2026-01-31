@@ -11,6 +11,37 @@ export const getSubjectColor = (subject: string) => {
   return subjectsColors[subject as keyof typeof subjectsColors];
 };
 
+// lib/constants/dummyData.ts
+export const DUMMY_COMPANIONS = [
+  {
+    id: 'dummy-1',
+    name: 'Math Explorer',
+    topic: 'Learn Algebra & Geometry',
+    subject: 'Mathematics',
+    duration: 45,
+    author: 'system',
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 'dummy-2',
+    name: 'Code Master',
+    topic: 'Introduction to Programming',
+    subject: 'Computer Science',
+    duration: 60,
+    author: 'system',
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 'dummy-3',
+    name: 'Science Guide',
+    topic: 'Physics & Chemistry Basics',
+    subject: 'Science',
+    duration: 50,
+    author: 'system',
+    created_at: new Date().toISOString()
+  }
+];
+
 export const configureAssistant = (voice: string, style: string) => {
   const voiceId =
     voices[voice as keyof typeof voices][
