@@ -10,7 +10,18 @@ export default async function ConversationsPage() {
   const user = await currentUser();
   if (!user) redirect('/sign-in');
 
-  const conversations = await getAllConversationHistories();
+  let conversations = [];
+  let error = null;
+
+  try {
+    conversations = await getAllConversationHistories();
+    console.log('Conversations loaded:', conversations); // Debug log
+  } catch (err) {
+    console.error('Error loading conversations:', err);
+    error = err;
+  }
+
+  console.log('Conversations loaded:', conversations);
 
   return (
     <main className="max-w-5xl mx-auto p-6">
@@ -19,7 +30,13 @@ export default async function ConversationsPage() {
         <p className="text-slate-600">Resume your previous conversations</p>
       </div>
 
-      {conversations.length === 0 ? (
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
+          <p className="text-red-700">Error loading conversations. Please try again.</p>
+        </div>
+      )}
+
+      {!error && conversations.length === 0 ? (
         <div className="text-center py-20 bg-slate-50 rounded-3xl">
           <MessageCircle size={48} className="mx-auto text-slate-400 mb-4" />
           <p className="text-slate-600 font-medium mb-4">No saved conversations yet</p>
@@ -37,6 +54,11 @@ export default async function ConversationsPage() {
               hour: '2-digit',
               minute: '2-digit'
             });
+
+            // Safety check for companion data
+            if (!conv.companion) {
+              return null;
+            }
 
             return (
               <Link href={`/companion/${conv.companion_id}`} key={conv.id}>

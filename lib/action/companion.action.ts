@@ -1,7 +1,7 @@
 'use server'
 
 import { auth, currentUser } from "@clerk/nextjs/server"
-import { CreateSupabaseClient } from "../supabase";
+import { CreateSupabaseClient, CreateSupabaseServiceClient } from "../supabase";
 import { DUMMY_COMPANIONS } from "../../constants/index";
 
 export const createCompanion = async (formData: CreateCompanion) => {
@@ -260,23 +260,22 @@ export const saveConversationHistory = async (
     
     if (!userId) throw new Error('User not authenticated');
     
-    // Check permission
     const hasPermission = await hasConversationHistoryPermission();
     if (!hasPermission) {
         throw new Error('Conversation history is only available for Intermediate and Pro plans');
     }
     
-    const supabase = CreateSupabaseClient();
+    // Use service role client - bypasses RLS
+    const supabase = CreateSupabaseServiceClient();
     
-    // Check if conversation already exists
     const { data: existingConversation } = await supabase
         .from('conversation_history')
-        .select(`companion:companion_id (*)`)
+        .select('id')
         .eq('user_id', userId)
-        .single();
+        .eq('companion_id', companionId)
+        .maybeSingle();
     
     if (existingConversation) {
-        // Update existing conversation
         const { data, error } = await supabase
             .from('conversation_history')
             .update({
@@ -284,13 +283,13 @@ export const saveConversationHistory = async (
                 last_message_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
             })
-            .eq('companion:companion_id (*)', existingConversation.companion)
-            .select();
+            .eq('id', existingConversation.id)
+            .select()
+            .single();
         
         if (error) throw new Error(error.message);
-        return data[0];
+        return data;
     } else {
-        // Create new conversation
         const { data, error } = await supabase
             .from('conversation_history')
             .insert({
@@ -299,10 +298,11 @@ export const saveConversationHistory = async (
                 messages: messages,
                 last_message_at: new Date().toISOString()
             })
-            .select();
+            .select()
+            .single();
         
         if (error) throw new Error(error.message);
-        return data[0];
+        return data;
     }
 }
 
@@ -361,22 +361,38 @@ export const getAllConversationHistories = async () => {
     
     if (!userId) return [];
     
-    // Check permission
     const hasPermission = await hasConversationHistoryPermission();
     if (!hasPermission) return [];
     
-    const supabase = CreateSupabaseClient();
+    const supabase = CreateSupabaseServiceClient();
     
-    const { data, error } = await supabase
+    // Get conversation histories
+    const { data: conversations, error } = await supabase
         .from('conversation_history')
-        .select(`
-            *,
-            companion:companion_id (*)
-        `)
+        .select('*')
         .eq('user_id', userId)
         .order('last_message_at', { ascending: false });
     
-    if (error) throw new Error(error.message);
+    if (error) {
+        console.error('Error fetching conversations:', error);
+        throw new Error(error.message);
+    }
+
+    // Manually fetch companion data for each conversation
+    const conversationsWithCompanions = await Promise.all(
+        conversations.map(async (conv) => {
+            const { data: companion } = await supabase
+                .from('companions')
+                .select('*')
+                .eq('id', conv.companion_id)
+                .single();
+            
+            return {
+                ...conv,
+                companion: companion
+            };
+        })
+    );
     
-    return data;
+    return conversationsWithCompanions;
 }
