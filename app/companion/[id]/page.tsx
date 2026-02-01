@@ -1,5 +1,6 @@
+
 import CompanionComponent from "@/components/CompanionComponent";
-import { getCompanion } from "@/lib/action/companion.action";
+import { getCompanion, getConversationHistory } from "@/lib/action/companion.action";
 import { getSubjectColor } from "@/lib/utils";
 import { currentUser } from "@clerk/nextjs/server";
 import { Clock } from "lucide-react"; 
@@ -21,8 +22,16 @@ const CompanionSession = async ({ params }: CompanionSessionPageProps) => {
   if(!user) redirect('/sign-in')
   if(!name) redirect('/companion')
 
+  // Load conversation history on server
+  let initialConversationHistory = null;
+  try {
+    initialConversationHistory = await getConversationHistory(id);
+    console.log('Server loaded conversation:', initialConversationHistory);
+  } catch (error) {
+    console.error('Error loading conversation history on server:', error);
+  }
+
   return (
-    // Added 'bg-slate-50' to make the white cards pop
     <main className="min-h-screen  p-4 md:p-10 flex flex-col items-center gap-8">
        {/* 1. Floating Pill Header */}
        <header className="bg-white rounded-full shadow-sm border border-slate-100 px-6 py-4 flex flex-wrap items-center justify-between w-full max-w-5xl gap-4">
@@ -59,6 +68,7 @@ const CompanionSession = async ({ params }: CompanionSessionPageProps) => {
             companionId={id}
             userName={user.firstName!}
             userImage={user.imageUrl!}
+            initialConversationHistory={initialConversationHistory}
           />
        </div>
     </main>

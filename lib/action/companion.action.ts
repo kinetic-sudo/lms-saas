@@ -308,32 +308,41 @@ export const saveConversationHistory = async (
 
 // Get conversation history for a specific companion
 export const getConversationHistory = async (companionId: string) => {
-    const { userId } = await auth();
-    
-    if (!userId) return null;
-    
-    // Check permission
-    const hasPermission = await hasConversationHistoryPermission();
-    if (!hasPermission) return null;
-    
-    const supabase = CreateSupabaseClient();
-    
-    const { data, error } = await supabase
-        .from('conversation_history')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('companion_id', companionId)
-        .single();
-    
-    if (error) {
-        if (error.code === 'PGRST116') {
-            // No conversation found - this is okay
+    try {
+        const { userId } = await auth();
+        
+        if (!userId) {
+            console.log('No userId found');
             return null;
         }
-        throw new Error(error.message);
+        
+        // Check permission
+        const hasPermission = await hasConversationHistoryPermission();
+        if (!hasPermission) {
+            console.log('No permission for conversation history');
+            return null;
+        }
+        
+        const supabase = CreateSupabaseServiceClient();
+        
+        const { data, error } = await supabase
+            .from('conversation_history')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('companion_id', companionId)
+            .maybeSingle(); // Use maybeSingle instead of single
+        
+        if (error) {
+            console.error('Supabase error:', error);
+            return null;
+        }
+        
+        console.log('Found conversation history:', data);
+        return data;
+    } catch (error) {
+        console.error('Error in getConversationHistory:', error);
+        return null;
     }
-    
-    return data;
 }
 
 // Delete conversation history
@@ -366,10 +375,12 @@ export const getAllConversationHistories = async () => {
     
     const supabase = CreateSupabaseServiceClient();
     
-    // Get conversation histories
-    const { data: conversations, error } = await supabase
+    const { data, error } = await supabase
         .from('conversation_history')
-        .select('*')
+        .select(`
+            *,
+            companions!conversation_history_companion_id_fkey (*)
+        `)
         .eq('user_id', userId)
         .order('last_message_at', { ascending: false });
     
@@ -378,21 +389,10 @@ export const getAllConversationHistories = async () => {
         throw new Error(error.message);
     }
 
-    // Manually fetch companion data for each conversation
-    const conversationsWithCompanions = await Promise.all(
-        conversations.map(async (conv) => {
-            const { data: companion } = await supabase
-                .from('companions')
-                .select('*')
-                .eq('id', conv.companion_id)
-                .single();
-            
-            return {
-                ...conv,
-                companion: companion
-            };
-        })
-    );
-    
-    return conversationsWithCompanions;
+    // Rename 'companions' to 'companion' for consistency
+    return data.map(conv => ({
+        ...conv,
+        companion: conv.companions,
+        companions: undefined
+    }));
 }

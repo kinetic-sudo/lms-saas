@@ -1,3 +1,5 @@
+// components/CompanionComponent.tsx
+
 'use client'
 
 import { cn, configureAssistant, getSubjectColor } from '@/lib/utils'
@@ -6,8 +8,8 @@ import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react'
 import Lottie, { LottieRefCurrentProps } from 'lottie-react'
 import soundwaves from '../constants/soundwaves.json'
-import { addToSessionHistory, saveConversationHistory, getConversationHistory, hasConversationHistoryPermission } from '@/lib/action/companion.action';
-import { Mic, MicOff, Play, Square, MessageCircle, Trash2 } from 'lucide-react';
+import { addToSessionHistory, saveConversationHistory, hasConversationHistoryPermission } from '@/lib/action/companion.action';
+import { Mic, MicOff, Play, Square, MessageCircle } from 'lucide-react';
 
 enum CallStatus {
     INACTIVE = 'INACTIVE',
@@ -25,24 +27,36 @@ interface CompanionComponentProps {
     userImage: string;
     style: string;
     voice: string;
+    initialConversationHistory?: any; // Add this prop
 }
 
 interface SavedMessage {
-    id: string;
+    id?: string;
     role: string;
     content: string;
     timestamp: string;
 }
 
-const CompanionComponent = ({ companionId, subject, topic, name, userName, userImage, style, voice }: CompanionComponentProps) => {
+const CompanionComponent = ({ 
+    companionId, 
+    subject, 
+    topic, 
+    name, 
+    userName, 
+    userImage, 
+    style, 
+    voice,
+    initialConversationHistory // Destructure the new prop
+}: CompanionComponentProps) => {
 
     const [callStatus, setCallStatus] = useState<CallStatus>(CallStatus.INACTIVE);
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [isMuted, setIsMuted] = useState(false);
     const [messages, setMessages] = useState<SavedMessage[]>([]);
     const [hasHistoryPermission, setHasHistoryPermission] = useState(false);
-    const [savedConversation, setSavedConversation] = useState<any>(null);
+    const [savedConversation, setSavedConversation] = useState<any>(initialConversationHistory); // Initialize with prop
     const [showResumePrompt, setShowResumePrompt] = useState(false);
+    const [isResuming, setIsResuming] = useState(false);
 
     const lottieRef = useRef<LottieRefCurrentProps>(null);
 
@@ -53,12 +67,12 @@ const CompanionComponent = ({ companionId, subject, topic, name, userName, userI
                 const permission = await hasConversationHistoryPermission();
                 setHasHistoryPermission(permission);
                 
-                if (permission) {
-                    const history = await getConversationHistory(companionId);
-                    if (history && history.messages && history.messages.length > 0) {
-                        setSavedConversation(history);
-                        setShowResumePrompt(true);
-                    }
+                // Use the prop if available, otherwise it's already set
+                console.log('Initial conversation history from server:', initialConversationHistory);
+                
+                if (permission && initialConversationHistory && initialConversationHistory.messages && initialConversationHistory.messages.length > 0) {
+                    setSavedConversation(initialConversationHistory);
+                    setShowResumePrompt(true);
                 }
             } catch (error) {
                 console.error('Error checking conversation history:', error);
@@ -66,7 +80,7 @@ const CompanionComponent = ({ companionId, subject, topic, name, userName, userI
         };
 
         checkConversationHistory();
-    }, [companionId]);
+    }, [companionId, initialConversationHistory]); // Add initialConversationHistory to dependencies
 
     // Auto-save conversation every 30 seconds when active
     useEffect(() => {
@@ -75,13 +89,15 @@ const CompanionComponent = ({ companionId, subject, topic, name, userName, userI
         const saveInterval = setInterval(async () => {
             if (messages.length > 0) {
                 try {
-                    await saveConversationHistory(companionId, messages);
-                    console.log('Conversation auto-saved');
+                    // Save in chronological order (oldest first)
+                    const messagesToSave = [...messages].reverse();
+                    await saveConversationHistory(companionId, messagesToSave);
+                    console.log('Conversation auto-saved', messagesToSave.length, 'messages');
                 } catch (error) {
                     console.error('Error auto-saving conversation:', error);
                 }
             }
-        }, 30000); // Save every 30 seconds
+        }, 30000);
 
         return () => clearInterval(saveInterval);
     }, [hasHistoryPermission, callStatus, messages, companionId]);
@@ -104,15 +120,18 @@ const CompanionComponent = ({ companionId, subject, topic, name, userName, userI
             setCallStatus(CallStatus.FINISHED);
             await addToSessionHistory(companionId);
             
-            // Save final conversation
+            // Save final conversation in chronological order
             if (hasHistoryPermission && messages.length > 0) {
                 try {
-                    await saveConversationHistory(companionId, messages);
-                    console.log('Final conversation saved');
+                    const messagesToSave = [...messages].reverse();
+                    await saveConversationHistory(companionId, messagesToSave);
+                    console.log('Final conversation saved:', messagesToSave.length, 'messages');
                 } catch (error) {
                     console.error('Error saving final conversation:', error);
                 }
             }
+            
+            setIsResuming(false);
         }
         const onMessage = (message: any) => {
             if (message.type === 'transcript' && message.transcriptType === 'final') {
@@ -122,7 +141,8 @@ const CompanionComponent = ({ companionId, subject, topic, name, userName, userI
                     content: message.transcript,
                     timestamp: new Date().toISOString()
                 }
-                setMessages((prev) => [newMessage, ...prev])
+                console.log('New message received:', newMessage);
+                setMessages((prev) => [newMessage, ...prev]) // Newest first for UI
             }
         }
         const onSpeechStart = () => setIsSpeaking(true)
@@ -152,17 +172,30 @@ const CompanionComponent = ({ companionId, subject, topic, name, userName, userI
         setIsMuted(muted)
     }
 
-    const handleCall = async () => {
+    const handleCall = async (conversationHistory?: SavedMessage[]) => {
         setCallStatus(CallStatus.CONNECTING);
-        setShowResumePrompt(false); // Hide resume prompt when starting
+        setShowResumePrompt(false);
         
-        const assistantOverides = {
+        console.log('Starting call with history:', conversationHistory);
+        
+        // Configure assistant with conversation history if resuming
+        const assistant = configureAssistant(voice, style, conversationHistory);
+        
+        // Update first message if resuming
+        if (conversationHistory && conversationHistory.length > 0) {
+            assistant.firstMessage = `Welcome back! Let's continue our session on ${topic}. We were discussing some great points earlier.`;
+        } else {
+            assistant.firstMessage = `Hello, let's start the session. Today we'll be talking about ${topic}.`;
+        }
+        
+        const assistantOverrides = {
             variableValues: { subject, topic, style },
             clientMessages: ['transcript'],
             serverMessages: []
         }
+        
         //@ts-expect-error
-        vapi.start(configureAssistant(voice, style), assistantOverides)
+        vapi.start(assistant, assistantOverrides)
     }
 
     const handleDisconnect = async () => {
@@ -172,14 +205,32 @@ const CompanionComponent = ({ companionId, subject, topic, name, userName, userI
 
     const handleResumeConversation = () => {
         if (savedConversation?.messages) {
-            setMessages(savedConversation.messages.reverse()); // Reverse to show newest first
+            console.log('Resuming with messages:', savedConversation.messages);
+            
+            // Messages from DB are in chronological order (oldest first)
+            // For UI: reverse to show newest first
+            const messagesForUI = [...savedConversation.messages].reverse().map((msg: any) => ({
+                ...msg,
+                id: msg.id || `${Date.now()}-${Math.random()}`
+            }));
+            
+            setMessages(messagesForUI);
+            setIsResuming(true);
+            
+            // For AI: keep chronological order (oldest first)
+            const historyForAI = savedConversation.messages;
+            
+            console.log('Messages for UI (newest first):', messagesForUI);
+            console.log('Messages for AI (oldest first):', historyForAI);
+            
+            setShowResumePrompt(false);
+            handleCall(historyForAI);
         }
-        setShowResumePrompt(false);
-        handleCall();
     }
 
     const handleStartFresh = () => {
         setMessages([]);
+        setIsResuming(false);
         setShowResumePrompt(false);
         handleCall();
     }
@@ -237,7 +288,7 @@ const CompanionComponent = ({ companionId, subject, topic, name, userName, userI
             )}
 
             {/* Upgrade Prompt for Free Users */}
-            {!hasHistoryPermission && callStatus === CallStatus.INACTIVE && (
+            {!hasHistoryPermission && callStatus === CallStatus.INACTIVE && !showResumePrompt && (
                 <div className="lg:col-span-3 animate-in slide-in-from-top-5 duration-500">
                     <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-6 border border-indigo-100">
                         <div className="flex items-start gap-4">
@@ -265,8 +316,8 @@ const CompanionComponent = ({ companionId, subject, topic, name, userName, userI
                 </div>
             )}
             
-            {/* LEFT COLUMN: Monitor (Spans 2 columns) */}
-            <div className={cn(cardClass, "lg:col-span-2 flex flex-col items-center justify-center min-h-[500px] relative overflow-hidden transition-all")}>
+             {/* LEFT COLUMN: Monitor (Spans 2 columns) */}
+             <div className={cn(cardClass, "lg:col-span-2 flex flex-col items-center justify-center min-h-[500px] relative overflow-hidden transition-all")}>
                 
                 {/* INACTIVE STATE: Big Logo */}
                 {(callStatus === CallStatus.INACTIVE || callStatus === CallStatus.CONNECTING || callStatus === CallStatus.FINISHED) && (
@@ -283,6 +334,11 @@ const CompanionComponent = ({ companionId, subject, topic, name, userName, userI
                         <div className="text-center space-y-2">
                              <h2 className="text-4xl font-black tracking-tighter">{name}</h2>
                              <p className="text-slate-400 font-medium">Your {subject} Companion</p>
+                             {isResuming && callStatus === CallStatus.CONNECTING && (
+                                 <p className="text-green-600 text-sm font-bold animate-pulse">
+                                     Loading conversation history...
+                                 </p>
+                             )}
                         </div>
                     </div>
                 )}
@@ -307,9 +363,14 @@ const CompanionComponent = ({ companionId, subject, topic, name, userName, userI
                         {/* BOTTOM: Scrolling Transcript */}
                         <div className="h-[200px] w-full border-t border-slate-100 pt-4 flex flex-col">
                             <div className="flex items-center justify-between mb-2 px-2">
-                                <p className="text-xs font-bold text-slate-300 uppercase">Live Transcript</p>
+                                <p className="text-xs font-bold text-slate-300 uppercase">
+                                    Live Transcript
+                                    {isResuming && (
+                                        <span className="ml-2 text-green-600">• Resumed Session</span>
+                                    )}
+                                </p>
                                 {hasHistoryPermission && messages.length > 0 && (
-                                    <p className="text-xs text-green-600 font-bold">● Auto-saving</p>
+                                    <p className="text-xs text-green-600 font-bold">● Auto-saving ({messages.length} msgs)</p>
                                 )}
                             </div>
                             
@@ -317,8 +378,8 @@ const CompanionComponent = ({ companionId, subject, topic, name, userName, userI
                                 {messages.length === 0 && (
                                     <p className="text-center text-slate-300 text-sm italic">Listening...</p>
                                 )}
-                                {messages.map((msg) => (
-                                    <div key={msg.id} className={cn(
+                                {messages.map((msg, index) => (
+                                    <div key={msg.id || index} className={cn(
                                         "flex w-full animate-in fade-in slide-in-from-bottom-2",
                                         msg.role === 'user' ? "justify-end" : "justify-start"
                                     )}>
@@ -369,7 +430,7 @@ const CompanionComponent = ({ companionId, subject, topic, name, userName, userI
                             <p className="text-xs font-medium text-slate-400">{isMuted ? 'Muted' : 'Active'}</p>
                         </div>
                     </div>
-                    <button onClick={toggleMicrophone} className="text-[10px] font-bold border border-slate-200 rounded-full px-3 py-1.5 uppercase tracking-wide hover:bg-slate-50">
+                    <button onClick={toggleMicrophone} disabled={callStatus !== CallStatus.ACTIVE} className="text-[10px] font-bold border border-slate-200 rounded-full px-3 py-1.5 uppercase tracking-wide hover:bg-slate-50 disabled:opacity-50">
                         {isMuted ? 'Turn On' : 'Turn Off'}
                     </button>
                 </div>
@@ -382,19 +443,19 @@ const CompanionComponent = ({ companionId, subject, topic, name, userName, userI
                             callStatus === CallStatus.ACTIVE ? 'bg-red-500 shadow-red-200' : 'bg-[#111111] shadow-slate-200',
                             callStatus === CallStatus.CONNECTING && 'opacity-80 cursor-wait'
                         )}
-                        onClick={callStatus === CallStatus.ACTIVE ? handleDisconnect : handleCall}
+                        onClick={callStatus === CallStatus.ACTIVE ? handleDisconnect : () => handleCall()}
                         disabled={callStatus === CallStatus.CONNECTING}
                     >
                         {callStatus === CallStatus.ACTIVE ? (
                             <><Square fill="currentColor" size={20} /> End Session</>
                         ) : callStatus === CallStatus.CONNECTING ? (
-                            "Connecting..."
+                            isResuming ? "Resuming..." : "Connecting..."
                         ) : (
                             <>Start Session <Play fill="currentColor" size={20} /></>
                         )}
                     </button>
                 </div>
-            </div>
+            </div>            
         </section>
     )
 }
