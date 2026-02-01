@@ -1,8 +1,8 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { subjectsColors,  voices  } from "@/constants";
-
+import { subjectsColors, voices } from "@/constants";
 import { CreateAssistantDTO } from "@vapi-ai/web/dist/api";
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
@@ -10,7 +10,6 @@ export function cn(...inputs: ClassValue[]) {
 export const getSubjectColor = (subject: string) => {
   return subjectsColors[subject as keyof typeof subjectsColors];
 };
-
 
 export const configureAssistant = (
   voice: string, 
@@ -22,42 +21,94 @@ export const configureAssistant = (
       style as keyof (typeof voices)[keyof typeof voices]
     ] || "sarah";
 
-  // Build the system message with context about conversation history
+  // Analyze conversation to get context for first message
+  let contextualFirstMessage = "Hello! Let's start our session on {{topic}}. What would you like to explore?";
+  
+  if (conversationHistory && conversationHistory.length > 0) {
+    // Get last few messages to understand context
+    const lastMessages = conversationHistory.slice(-4);
+    const topics = lastMessages
+      .filter(m => m.role === 'assistant')
+      .map(m => m.content.substring(0, 100))
+      .join(' ');
+    
+    // Create a dynamic first message that forces the AI to continue
+    contextualFirstMessage = `Welcome back! Last time we were discussing {{topic}}. Let me quickly recap where we left off and continue from there.`;
+  }
+
+  // Build the base system message with enhanced instructions
   const systemMessage = {
     role: "system" as const,
-    content: `You are a highly knowledgeable tutor teaching a real-time voice session with a student. Your goal is to teach the student about the topic and subject.
+    content: `You are a highly knowledgeable tutor in a real-time voice session teaching about {{topic}} in the subject of {{subject}}.
 
-              Tutor Guidelines:
-              Stick to the given topic - {{ topic }} and subject - {{ subject }} and teach the student about it.
-              Keep the conversation flowing smoothly while maintaining control.
-              From time to time make sure that the student is following you and understands you.
-              Break down the topic into smaller parts and teach the student one part at a time.
-              Keep your style of conversation {{ style }}.
-              Keep your responses short, like in a real voice conversation.
-              Do not include any special characters in your responses - this is a voice conversation.
-              ${conversationHistory && conversationHistory.length > 0 
-                ? `\n\nIMPORTANT: This is a continuation of a previous session. You have context of the previous conversation. Acknowledge that you're continuing from where you left off and build upon what was already discussed. Don't repeat information already covered.` 
-                : ''}
-        `,
+CRITICAL INSTRUCTIONS FOR SESSION CONTINUITY:
+${conversationHistory && conversationHistory.length > 0 
+  ? `This is a RESUMED session. The complete conversation history is provided in the messages.
+
+MANDATORY FIRST RESPONSE BEHAVIOR:
+1. Your FIRST response MUST immediately acknowledge what was discussed
+2. Provide a brief 2-3 sentence summary of what you covered last time
+3. State the specific concept/topic you were explaining when the session ended
+4. Then ask a question or continue teaching the NEXT logical concept
+5. DO NOT just say "welcome back" and wait - BE PROACTIVE
+
+EXAMPLE PERFECT FIRST RESPONSE:
+"Welcome back! Last time we covered offset pagination and cursor-based pagination. We were just about to explore bidirectional cursors in detail. So, bidirectional cursors allow navigation in both directions - forward and backward through a dataset. Have you worked with cursors before?"
+
+EXAMPLE BAD FIRST RESPONSE:
+"Welcome back! Let me pick up where we left off." [THEN STOPS] ❌
+
+GENERAL RESUMED SESSION RULES:
+- Review conversation history to understand exactly what was discussed
+- DO NOT re-teach topics already covered
+- Reference previous discussions naturally (e.g., "As we discussed earlier...")
+- Build upon the foundation already established
+- Continue from the NEXT logical teaching point
+`
+  : `This is a NEW session. Start fresh.
+
+FIRST RESPONSE BEHAVIOR:
+1. Friendly greeting
+2. Brief introduction to {{topic}}
+3. Ask about their current knowledge level
+`}
+
+GENERAL TEACHING STYLE:
+- Maintain a {{style}} conversational style
+- Keep responses SHORT (2-4 sentences) - this is VOICE, not text
+- Ask questions to check understanding frequently
+- Break complex topics into digestible chunks
+- NO special characters, emojis, markdown, or formatting
+- Use natural speech patterns
+- Stay focused on {{topic}} within {{subject}}
+`,
   };
 
-  // Build messages array - start with system message
+  // Build messages array
   const messages: any[] = [systemMessage];
 
-  // Add conversation history if provided
+  // Add conversation history
   if (conversationHistory && conversationHistory.length > 0) {
-    // Add all previous messages to give AI full context
+    console.log('Adding conversation history to model:', conversationHistory.length, 'messages');
+    
     conversationHistory.forEach(msg => {
       messages.push({
-        role: msg.role,
+        role: msg.role === 'user' ? 'user' : 'assistant',
         content: msg.content
       });
+    });
+    
+    // Add a user message to prompt the AI to respond proactively
+    // This forces the AI to continue rather than wait
+    messages.push({
+      role: "user",
+      content: "Please continue from where we left off. What's next?"
     });
   }
 
   const vapiAssistant: CreateAssistantDTO = {
     name: "Companion",
-    firstMessage: "Hello, let's start the session. Today we'll be talking about {{topic}}.",
+    firstMessage: contextualFirstMessage,
     transcriber: {
       provider: "deepgram",
       model: "nova-3",
@@ -74,12 +125,15 @@ export const configureAssistant = (
     },
     model: {
       provider: "openai",
-      model: "gpt-4",
-      messages: messages, // Use the messages array with history
+      model: "gpt-4o",
+      messages: messages,
+      temperature: 0.7,
+      maxTokens: 250, // Increased slightly for better summaries
     },
     clientMessages: [],
     serverMessages: [],
   };
   
+  console.log('Assistant configured with', messages.length, 'messages');
   return vapiAssistant;
 };

@@ -92,7 +92,7 @@ const CompanionComponent = ({
                 try {
                     const messagesToSave = [...messages].reverse();
                     await saveConversationHistory(companionId, messagesToSave);
-                    console.log('Conversation auto-saved', messagesToSave.length, 'messages');
+                    // console.log('Conversation auto-saved', messagesToSave.length, 'messages');
                 } catch (error) {
                     console.error('Error auto-saving conversation:', error);
                 }
@@ -124,7 +124,7 @@ const CompanionComponent = ({
                 try {
                     const messagesToSave = [...messages].reverse();
                     await saveConversationHistory(companionId, messagesToSave);
-                    console.log('Final conversation saved:', messagesToSave.length, 'messages');
+                    // console.log('Final conversation saved:', messagesToSave.length, 'messages');
                 } catch (error) {
                     console.error('Error saving final conversation:', error);
                 }
@@ -140,7 +140,7 @@ const CompanionComponent = ({
                     content: message.transcript,
                     timestamp: new Date().toISOString()
                 }
-                console.log('New message received:', newMessage);
+                // console.log('New message received:', newMessage);
                 setMessages((prev) => [newMessage, ...prev])
             }
         }
@@ -175,15 +175,10 @@ const CompanionComponent = ({
         setCallStatus(CallStatus.CONNECTING);
         setShowResumePrompt(false);
         
-        console.log('Starting call with history:', conversationHistory);
+        // console.log('Starting call with history:', conversationHistory?.length || 0, 'messages');
         
+        // Pass the conversation history directly to configureAssistant
         const assistant = configureAssistant(voice, style, conversationHistory);
-        
-        if (conversationHistory && conversationHistory.length > 0) {
-            assistant.firstMessage = `Welcome back! Let's continue our session on ${topic}. We were discussing some great points earlier.`;
-        } else {
-            assistant.firstMessage = `Hello, let's start the session. Today we'll be talking about ${topic}.`;
-        }
         
         const assistantOverrides = {
             variableValues: { subject, topic, style },
@@ -194,40 +189,65 @@ const CompanionComponent = ({
         //@ts-expect-error
         vapi.start(assistant, assistantOverrides)
     }
+    
+    const handleResumeConversation = () => {
+        if (savedConversation?.messages && savedConversation.messages.length > 0) {
+            const historyForModel = savedConversation.messages.map((msg: any) => ({
+                role: msg.role,
+                content: msg.content
+            }));
+            
+          
+            
+            // Set messages for UI (reversed for display newest first)
+            setMessages(savedConversation.messages.slice().reverse());
+            setIsResuming(true);
+        }
+        setShowResumePrompt(false);
+        
+        // Pass the conversation history to handleCall
+        handleCall(savedConversation?.messages);
+    }
+    
+    const handleStartFresh = () => {
+        setMessages([]);
+        setShowResumePrompt(false);
+        handleCall(); // No history
+    }
 
     const handleDisconnect = async () => {
         setCallStatus(CallStatus.FINISHED)
         vapi.stop()
     }
 
-    const handleResumeConversation = () => {
-        if (savedConversation?.messages) {
-            console.log('Resuming with messages:', savedConversation.messages);
+    // const handleResumeConversation = () => {
+    //     if (savedConversation?.messages) {
+    //         console.log('Resuming with messages:', savedConversation.messages);
             
-            const messagesForUI = [...savedConversation.messages].reverse().map((msg: any) => ({
-                ...msg,
-                id: msg.id || `${Date.now()}-${Math.random()}`
-            }));
+    //         const messagesForUI = [...savedConversation.messages].reverse().map((msg: any) => ({
+    //             ...msg,
+    //             id: msg.id || `${Date.now()}-${Math.random()}`
+    //         }));
             
-            setMessages(messagesForUI);
-            setIsResuming(true);
+    //         setMessages(messagesForUI);
+    //         setIsResuming(true);
             
-            const historyForAI = savedConversation.messages;
+    //         const historyForAI = savedConversation.messages;
             
-            console.log('Messages for UI (newest first):', messagesForUI);
-            console.log('Messages for AI (oldest first):', historyForAI);
+    //         console.log('Messages for UI (newest first):', messagesForUI);
+    //         console.log('Messages for AI (oldest first):', historyForAI);
             
-            setShowResumePrompt(false);
-            handleCall(historyForAI);
-        }
-    }
+    //         setShowResumePrompt(false);
+    //         handleCall(historyForAI);
+    //     }
+    // }
 
-    const handleStartFresh = () => {
-        setMessages([]);
-        setIsResuming(false);
-        setShowResumePrompt(false);
-        handleCall();
-    }
+    // const handleStartFresh = () => {
+    //     setMessages([]);
+    //     setIsResuming(false);
+    //     setShowResumePrompt(false);
+    //     handleCall();
+    // }
 
     const cardClass = "bg-white rounded-[2rem] border border-slate-100 shadow-sm p-8";
 
