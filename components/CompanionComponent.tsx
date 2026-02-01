@@ -27,7 +27,7 @@ interface CompanionComponentProps {
     userImage: string;
     style: string;
     voice: string;
-    initialConversationHistory?: any; // Add this prop
+    initialConversationHistory?: any;
 }
 
 interface SavedMessage {
@@ -46,15 +46,15 @@ const CompanionComponent = ({
     userImage, 
     style, 
     voice,
-    initialConversationHistory // Destructure the new prop
+    initialConversationHistory
 }: CompanionComponentProps) => {
 
     const [callStatus, setCallStatus] = useState<CallStatus>(CallStatus.INACTIVE);
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [isMuted, setIsMuted] = useState(false);
     const [messages, setMessages] = useState<SavedMessage[]>([]);
-    const [hasHistoryPermission, setHasHistoryPermission] = useState(false);
-    const [savedConversation, setSavedConversation] = useState<any>(initialConversationHistory); // Initialize with prop
+    const [hasHistoryPermission, setHasHistoryPermission] = useState<boolean | null>(null); // Changed to null initially
+    const [savedConversation, setSavedConversation] = useState<any>(initialConversationHistory);
     const [showResumePrompt, setShowResumePrompt] = useState(false);
     const [isResuming, setIsResuming] = useState(false);
 
@@ -67,8 +67,8 @@ const CompanionComponent = ({
                 const permission = await hasConversationHistoryPermission();
                 setHasHistoryPermission(permission);
                 
-                // Use the prop if available, otherwise it's already set
                 console.log('Initial conversation history from server:', initialConversationHistory);
+                console.log('Has permission:', permission);
                 
                 if (permission && initialConversationHistory && initialConversationHistory.messages && initialConversationHistory.messages.length > 0) {
                     setSavedConversation(initialConversationHistory);
@@ -76,11 +76,12 @@ const CompanionComponent = ({
                 }
             } catch (error) {
                 console.error('Error checking conversation history:', error);
+                setHasHistoryPermission(false);
             }
         };
 
         checkConversationHistory();
-    }, [companionId, initialConversationHistory]); // Add initialConversationHistory to dependencies
+    }, [companionId, initialConversationHistory]);
 
     // Auto-save conversation every 30 seconds when active
     useEffect(() => {
@@ -89,7 +90,6 @@ const CompanionComponent = ({
         const saveInterval = setInterval(async () => {
             if (messages.length > 0) {
                 try {
-                    // Save in chronological order (oldest first)
                     const messagesToSave = [...messages].reverse();
                     await saveConversationHistory(companionId, messagesToSave);
                     console.log('Conversation auto-saved', messagesToSave.length, 'messages');
@@ -120,7 +120,6 @@ const CompanionComponent = ({
             setCallStatus(CallStatus.FINISHED);
             await addToSessionHistory(companionId);
             
-            // Save final conversation in chronological order
             if (hasHistoryPermission && messages.length > 0) {
                 try {
                     const messagesToSave = [...messages].reverse();
@@ -142,7 +141,7 @@ const CompanionComponent = ({
                     timestamp: new Date().toISOString()
                 }
                 console.log('New message received:', newMessage);
-                setMessages((prev) => [newMessage, ...prev]) // Newest first for UI
+                setMessages((prev) => [newMessage, ...prev])
             }
         }
         const onSpeechStart = () => setIsSpeaking(true)
@@ -178,10 +177,8 @@ const CompanionComponent = ({
         
         console.log('Starting call with history:', conversationHistory);
         
-        // Configure assistant with conversation history if resuming
         const assistant = configureAssistant(voice, style, conversationHistory);
         
-        // Update first message if resuming
         if (conversationHistory && conversationHistory.length > 0) {
             assistant.firstMessage = `Welcome back! Let's continue our session on ${topic}. We were discussing some great points earlier.`;
         } else {
@@ -207,8 +204,6 @@ const CompanionComponent = ({
         if (savedConversation?.messages) {
             console.log('Resuming with messages:', savedConversation.messages);
             
-            // Messages from DB are in chronological order (oldest first)
-            // For UI: reverse to show newest first
             const messagesForUI = [...savedConversation.messages].reverse().map((msg: any) => ({
                 ...msg,
                 id: msg.id || `${Date.now()}-${Math.random()}`
@@ -217,7 +212,6 @@ const CompanionComponent = ({
             setMessages(messagesForUI);
             setIsResuming(true);
             
-            // For AI: keep chronological order (oldest first)
             const historyForAI = savedConversation.messages;
             
             console.log('Messages for UI (newest first):', messagesForUI);
@@ -243,16 +237,18 @@ const CompanionComponent = ({
             {/* Resume Conversation Prompt */}
             {showResumePrompt && savedConversation && (
                 <div className="lg:col-span-3 animate-in slide-in-from-top-5 duration-500">
-                    <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-6 border-2 border-green-200">
-                        <div className="flex items-start gap-4 mb-4">
-                            <div className="bg-green-500 text-white p-3 rounded-xl">
-                                <MessageCircle size={24} />
+                    <div className="bg-white border border-slate-200 rounded-[2.5rem] p-4 pl-6 flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm">
+                        
+                        <div className="flex items-center gap-5 w-full md:w-auto">
+                            <div className="size-14 rounded-full bg-[#E8FCD9] flex items-center justify-center text-[#22C55E] flex-shrink-0">
+                                <MessageCircle size={26} strokeWidth={2.5} />
                             </div>
-                            <div className="flex-1">
-                                <h3 className="font-bold text-lg text-slate-900 mb-1">
+                            
+                            <div className="flex flex-col gap-1">
+                                <h3 className="font-bold text-lg text-[#111111] leading-tight">
                                     Previous Conversation Found
                                 </h3>
-                                <p className="text-slate-600 text-sm mb-2">
+                                <p className="text-slate-500 text-sm font-bold">
                                     {savedConversation.messages.length} messages • Last active:{' '}
                                     {new Date(savedConversation.last_message_at).toLocaleDateString('en-US', {
                                         month: 'short',
@@ -261,24 +257,19 @@ const CompanionComponent = ({
                                         minute: '2-digit'
                                     })}
                                 </p>
-                                <div className="bg-white/60 rounded-xl p-3 border border-green-100 mb-4">
-                                    <p className="text-sm text-slate-700 italic line-clamp-2">
-                                        "{savedConversation.messages[savedConversation.messages.length - 1]?.content}"
-                                    </p>
-                                </div>
                             </div>
                         </div>
 
-                        <div className="flex gap-3">
+                        <div className="flex items-center gap-3 w-full md:w-auto">
                             <button
                                 onClick={handleResumeConversation}
-                                className="flex-1 bg-green-600 text-white px-4 py-3 rounded-xl font-bold hover:bg-green-700 transition"
+                                className="bg-[#111111] text-white px-8 py-3.5 rounded-full font-bold text-sm shadow-md hover:opacity-90 transition-all active:scale-95 whitespace-nowrap flex-1 md:flex-none"
                             >
                                 Resume Conversation
                             </button>
                             <button
                                 onClick={handleStartFresh}
-                                className="flex-1 bg-white text-slate-700 px-4 py-3 rounded-xl font-bold border-2 border-slate-200 hover:border-slate-300 transition"
+                                className="bg-white text-[#111111] border border-slate-200 px-8 py-3.5 rounded-full font-bold text-sm hover:bg-slate-50 transition-all active:scale-95 whitespace-nowrap flex-1 md:flex-none"
                             >
                                 Start Fresh
                             </button>
@@ -287,8 +278,8 @@ const CompanionComponent = ({
                 </div>
             )}
 
-            {/* Upgrade Prompt for Free Users */}
-            {!hasHistoryPermission && callStatus === CallStatus.INACTIVE && !showResumePrompt && (
+            {/* Upgrade Prompt for Free Users - FIXED CONDITION */}
+            {hasHistoryPermission === false && callStatus === CallStatus.INACTIVE && !showResumePrompt && (
                 <div className="lg:col-span-3 animate-in slide-in-from-top-5 duration-500">
                     <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-6 border border-indigo-100">
                         <div className="flex items-start gap-4">
