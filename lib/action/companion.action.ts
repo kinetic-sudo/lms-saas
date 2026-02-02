@@ -203,23 +203,23 @@ export const getUserCompanion = async (userId: string) => {
 }
 
 export const NewCompanionPermissions = async () => {
-    const { userId, has } = await auth()
-    
-    if (!userId) return false;
-    
-    const supabase = CreateSupabaseClient()
+    const { userId } = await auth()
+    const user = await currentUser()
 
-    let limit = 0
+    
+    if (!userId || !user) return false;
+    
+    const planKey = (user.publicMetadata?.plan as string) || 'basic';
+    
+    const supabase = CreateSupabaseClient();
 
-    if(has({ plan: 'pro' })) {
+
+    let limit = 3
+
+    if(planKey === 'pro') {
         return true
-    } else if(has({feature: '3_companion_limit'})) {
-        limit = 3;
-    } else if(has({feature: "10_companion_limit"})) {
+    } else if (planKey === 'intermediate') {
         limit = 10
-    } else {
-        // Default free tier
-        limit = 3;
     }
 
     const { data, error } = await supabase
@@ -238,15 +238,21 @@ export const NewCompanionPermissions = async () => {
 //  Only available for Intermediate Learner and Pro Companion plans
 
 export const hasConversationHistoryPermission = async () => {
-   const { userId, has } = await auth();
+   const { userId } = await auth();
    const user = await currentUser();
    
    if (!userId || !user) return false;
+
+   const planKey = (user.publicMetadata?.plan as string) || 'basic';
+
    
    // Check for paid plans
-   if (has({ plan: 'pro' }) || has({ plan: 'intermediate' })) {
-       return true;
+   if(planKey === 'pro' || planKey === 'intermediate') {
+    return true
    }
+//    if (has({ plan: 'pro' }) || has({ plan: 'intermediate' })) {
+//        return true;
+//    }
    
    return false;
 }

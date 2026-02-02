@@ -120,6 +120,33 @@ export async function activateClerkSubscription(
       throw new Error('Invalid payment signature');
     }
 
+    let paymentMethodLabel = 'Online Payment';
+    let cardLast4 = '••••';
+
+    try {
+        const payment = await razorpay.payments.fetch(razorpayData.paymentId);
+        
+        if (payment.method === 'card') {
+            // For cards, Razorpay returns specific card info
+            const cardInfo = payment.card; // Access the card object
+            // Note: Typescript might complain if types aren't perfect, cast as any if needed
+            const network = (cardInfo as any)?.network || 'Card';
+            const last4 = (cardInfo as any)?.last4 || '••••';
+            
+            paymentMethodLabel = `${network} Card`; // e.g. "Visa Card"
+            cardLast4 = last4;
+        } else if (payment.method === 'upi') {
+            paymentMethodLabel = `UPI (${payment.vpa})`;
+        } else if (payment.method === 'netbanking') {
+            paymentMethodLabel = `Netbanking (${payment.bank})`;
+        } else {
+            paymentMethodLabel = payment.method; // e.g. 'wallet'
+        }
+    } catch (err) {
+        console.error("Failed to fetch Razorpay payment details", err);
+        // Continue activation even if detail fetch fails
+    }
+
     // Get the plan details
     const clerkPlan = await getClerkPlanByKey(clerkPlanKey);
     if (!clerkPlan) {
@@ -140,6 +167,8 @@ export async function activateClerkSubscription(
         subscriptionEndDate: new Date(
           Date.now() + 30 * 24 * 60 * 60 * 1000 // 30 days
         ).toISOString(),
+        paymentMethod: paymentMethodLabel,
+        cardLast4: cardLast4
       },
     });
 
