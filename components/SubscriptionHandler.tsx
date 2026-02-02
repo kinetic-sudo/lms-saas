@@ -1,8 +1,8 @@
+// components/SubscriptionHandler.tsx
 'use client'
 
 import { useEffect } from 'react';
 import { useUser } from '@clerk/nextjs';
-import { createRazorpayOrderForClerkPlan } from '@/lib/action/subscription.action';
 import Script from 'next/script';
 
 declare global {
@@ -15,117 +15,86 @@ export default function SubscriptionHandler() {
   const { user } = useUser();
 
   useEffect(() => {
-    // Intercept all clicks on subscribe buttons
-    const handleSubscribeClick = async (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      
-      // Check if clicked element is a subscribe button
-      const button = target.closest('.cl-subscribe-btn');
-      if (!button) return;
-
-      // Get the plan card
-      const planCard = button.closest('.cl-plan-card');
-      if (!planCard) return;
-
-      // Extract plan key from Clerk's data attributes
-      const planKey = planCard.getAttribute('data-plan-key') || 
-                      planCard.querySelector('[data-plan-key]')?.getAttribute('data-plan-key');
-
-      if (!planKey) {
-        console.error('Could not find plan key');
-        return;
-      }
-
-      // Don't intercept free plan
-      if (planKey === 'basic') {
-        return; // Let Clerk handle it
-      }
-
-      // Prevent Clerk's default behavior
-      event.preventDefault();
-      event.stopPropagation();
-
-      // Handle Razorpay payment
-      await handleRazorpayPayment(planKey);
-    };
-
-    // Alternative: Intercept by button text
     const handleButtonClick = async (event: MouseEvent) => {
       const target = event.target as HTMLElement;
-      const button = target.closest('button');
+      const button = target.closest('button.razorpay-btn') as HTMLButtonElement;
       
       if (!button) return;
+
+      const planKey = button.getAttribute('data-plan');
       
-      const buttonText = button.textContent?.toLowerCase() || '';
-      
-      // Check if it's a subscribe/upgrade button
-      if (!buttonText.includes('subscribe') && 
-          !buttonText.includes('upgrade') && 
-          !buttonText.includes('select')) {
+      if (!planKey || planKey === 'basic') {
         return;
       }
 
-      // Find parent plan card
-      const planCard = button.closest('.cl-plan-card');
-      if (!planCard) return;
-
-      // Get plan name from the card
-      const planTitle = planCard.querySelector('.text-2xl')?.textContent?.toLowerCase() || '';
-      
-      let planKey = 'basic';
-      if (planTitle.includes('intermediate')) {
-        planKey = 'intermediate';
-      } else if (planTitle.includes('pro')) {
-        planKey = 'pro';
-      }
-
-      // Don't intercept free plan
-      if (planKey === 'basic') return;
-
-      // Prevent default
       event.preventDefault();
       event.stopPropagation();
 
-      await handleRazorpayPayment(planKey);
+      // Disable button
+      button.disabled = true;
+      button.textContent = 'Processing...';
+
+      try {
+        await handleRazorpayPayment(planKey);
+      } catch (error) {
+        console.error('Payment error:', error);
+        alert('Failed to initiate payment. Please try again.');
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Switch to this plan';
+      }
     };
 
-    // Add listeners
-    document.addEventListener('click', handleSubscribeClick, true);
     document.addEventListener('click', handleButtonClick, true);
 
     return () => {
-      document.removeEventListener('click', handleSubscribeClick, true);
       document.removeEventListener('click', handleButtonClick, true);
     };
-  }, []);
+  }, [user]);
 
   const handleRazorpayPayment = async (planKey: string) => {
     try {
-      // Create Razorpay order
-      const order = await createRazorpayOrderForClerkPlan(planKey);
+      console.log('Creating Razorpay order for plan:', planKey);
+      
+      // Create order via API route
+      const orderResponse = await fetch('/api/razorpay/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planKey }),
+      });
 
-      if (!order.success) {
-        alert('Failed to create order. Please try again.');
-        return;
+      const orderData = await orderResponse.json();
+
+      console.log('Order response:', orderData);
+
+      if (!orderResponse.ok || !orderData.success) {
+        throw new Error(orderData.error || 'Failed to create order');
       }
 
-      // Initialize Razorpay
+      // Check if Razorpay SDK is loaded
+      if (!window.Razorpay) {
+        throw new Error('Razorpay SDK not loaded. Please refresh the page.');
+      }
+
+      // Initialize Razorpay checkout
       const options = {
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
-        amount: order.amount,
-        currency: order.currency,
+        amount: orderData.amount,
+        currency: orderData.currency,
         name: 'SkillForge',
-        description: `${order.planName} Subscription`,
-        order_id: order.orderId,
+        description: `${orderData.planName} Subscription`,
+        order_id: orderData.orderId,
         prefill: {
           name: user?.fullName || '',
-          email: user?.emailAddresses[0].emailAddress || '',
+          email: user?.emailAddresses[0]?.emailAddress || '',
         },
         theme: {
           color: '#111111',
         },
         handler: async function (response: any) {
           try {
+            console.log('Payment successful:', response);
+            
             // Verify payment
             const verifyResponse = await fetch('/api/razorpay/verify-payment', {
               method: 'POST',
@@ -138,9 +107,11 @@ export default function SubscriptionHandler() {
               }),
             });
 
-            if (verifyResponse.ok) {
+            const verifyData = await verifyResponse.json();
+
+            if (verifyResponse.ok && verifyData.success) {
               alert('Subscription activated successfully! 🎉');
-              window.location.reload();
+              window.location.href = '/my-journey';
             } else {
               alert('Payment verification failed. Please contact support.');
             }
@@ -149,15 +120,23 @@ export default function SubscriptionHandler() {
             alert('Something went wrong. Please contact support.');
           }
         },
+        modal: {
+          ondismiss: function() {
+            console.log('Payment modal closed by user');
+          }
+        }
       };
+
+      console.log('Opening Razorpay checkout...');
 
       const razorpayInstance = new window.Razorpay(options);
       razorpayInstance.open();
-    } catch (error) {
-      console.error('Payment error:', error);
-      alert('Failed to initiate payment. Please try again.');
+
+    } catch (error: any) {
+      console.error('Payment initialization error:', error);
+      throw error;
     }
   };
 
-  return <Script src="https://checkout.razorpay.com/v1/checkout.js" />;
+  return <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive" />;
 }

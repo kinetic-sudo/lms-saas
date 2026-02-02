@@ -1,67 +1,75 @@
 'use server'
 
-import { clerkClient } from '@clerk/nextjs/server';
-
 export interface ClerkPlan {
   id: string;
   name: string;
   key: string;
-  monthlyPrice: number; // in cents (USD)
+  monthlyPrice: number; // in cents (USD) from Clerk
+  monthlyPriceINR: number; // converted to paise (INR)
   annualPrice: number;
   currency: string;
   features: string[];
   metadata?: Record<string, any>;
 }
 
+// USD to INR conversion rate (update periodically)
+const USD_TO_INR = 91;
 
+// Define your plans based on Clerk Dashboard configuration
+// Prices in cents (USD) matching Clerk exactly
+const SUBSCRIPTION_PLANS: ClerkPlan[] = [
+  {
+    id: 'plan_basic',
+    name: 'Basic Plan',
+    key: 'basic',
+    monthlyPrice: 0, // $0 in cents
+    monthlyPriceINR: 0, // ₹0 in paise
+    annualPrice: 0,
+    currency: 'INR',
+    features: [
+      '10 Conversation/month',
+      '3 Active Companions',
+      'Basic Session Recaps',
+    ],
+  },
+  {
+    id: 'plan_intermediate',
+    name: 'Intermediate Learner',
+    key: 'intermediate',
+    monthlyPrice: 1500, // $15 in cents (from Clerk)
+    monthlyPriceINR: Math.round(1500 * USD_TO_INR), // ₹1245 in paise
+    annualPrice: 18000, // $180 in cents
+    currency: 'INR',
+    features: [
+      'Everything in Free',
+      'Unlimited Conversations',
+      '10 Active Companion',
+      'Save Conversation History',
+      'Inline Quizzes & Recaps',
+      'Monthly Progress Report',
+    ],
+  },
+  {
+    id: 'plan_pro',
+    name: 'Pro Companion',
+    key: 'pro',
+    monthlyPrice: 4000, // $40 in cents (from Clerk)
+    monthlyPriceINR: Math.round(4000 * USD_TO_INR), // ₹3320 in paise
+    annualPrice: 48000, // $480 in cents
+    currency: 'INR',
+    features: [
+      'Everything in Core',
+      'Unlimited Companions',
+      'Early Access to New Features',
+      'Daily Learning Reminders',
+      'Full Performance Dashboard',
+      'Priority Support',
+    ],
+  },
+];
 
 export async function getClerkSubscriptionPlans(): Promise<ClerkPlan[]> {
-  try {
-    const client = await clerkClient();
-    
-    // Try to fetch from Clerk API
-    const response = await client.subscriptionPlans.list();
-    
-    if (!response || !response.data || response.data.length === 0) {
-      console.warn('No plans found in Clerk, attempting alternative fetch...');
-      return await fetchPlansAlternative();
-    }
-    
-    return response.data.map(plan => ({
-      id: plan.id,
-      name: plan.name,
-      key: plan.key,
-      monthlyPrice: plan.monthlyPrice || 0,
-      annualPrice: plan.annualPrice || 0,
-      currency: plan.currency || 'USD',
-      features: plan.features || [],
-      metadata: plan.metadata || {},
-    }));
-  } catch (error) {
-    console.error('Error fetching Clerk plans from API:', error);
-    // Try alternative method
-    return await fetchPlansAlternative();
-  }
-}
-
-// Alternative: Fetch plans using Clerk's billing endpoint
-async function fetchPlansAlternative(): Promise<ClerkPlan[]> {
-  try {
-    const client = await clerkClient();
-    
-    // Access billing plans through instance settings
-    const instance = await client.instances.getInstance();
-    
-    // If Clerk billing is configured, plans should be available
-    // This is a fallback that constructs plans from available data
-    console.log('Instance billing configuration:', instance);
-    
-    // If we still can't get plans, throw error to inform user
-    throw new Error('Unable to fetch subscription plans from Clerk. Please ensure billing is properly configured in Clerk Dashboard.');
-  } catch (error) {
-    console.error('Alternative fetch failed:', error);
-    throw new Error('Subscription plans not available. Please configure billing in Clerk Dashboard first.');
-  }
+  return SUBSCRIPTION_PLANS;
 }
 
 export async function getClerkPlanByKey(planKey: string): Promise<ClerkPlan | null> {
@@ -78,32 +86,5 @@ export async function getClerkPlanByKey(planKey: string): Promise<ClerkPlan | nu
   } catch (error) {
     console.error('Error fetching Clerk plan by key:', error);
     return null;
-  }
-}
-
-// Validate that all required plans are configured
-export async function validatePlanConfiguration(): Promise<{
-  valid: boolean;
-  missingPlans: string[];
-  availablePlans: string[];
-}> {
-  try {
-    const plans = await getClerkSubscriptionPlans();
-    const planKeys = plans.map(p => p.key);
-    
-    const requiredPlans = ['basic', 'intermediate', 'pro'];
-    const missingPlans = requiredPlans.filter(key => !planKeys.includes(key));
-    
-    return {
-      valid: missingPlans.length === 0,
-      missingPlans,
-      availablePlans: planKeys,
-    };
-  } catch (error) {
-    return {
-      valid: false,
-      missingPlans: ['basic', 'intermediate', 'pro'],
-      availablePlans: [],
-    };
   }
 }

@@ -15,8 +15,10 @@ export async function POST(req: NextRequest) {
       razorpay_order_id,
       razorpay_payment_id,
       razorpay_signature,
-      planKey, // Clerk plan key
+      planKey,
     } = body;
+
+    console.log('Verifying payment:', { razorpay_order_id, razorpay_payment_id, planKey });
 
     // Verify signature
     const generatedSignature = crypto
@@ -25,23 +27,25 @@ export async function POST(req: NextRequest) {
       .digest('hex');
 
     if (generatedSignature !== razorpay_signature) {
+      console.error('Invalid signature');
       return NextResponse.json(
-        { error: 'Invalid signature' },
+        { success: false, error: 'Invalid signature' },
         { status: 400 }
       );
     }
 
     // Activate subscription in Clerk
-    await activateClerkSubscription(userId, planKey, {
+    await activateClerkSubscription(planKey, {
       orderId: razorpay_order_id,
       paymentId: razorpay_payment_id,
+      signature: razorpay_signature,
     });
 
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Payment verification error:', error);
     return NextResponse.json(
-      { error: 'Verification failed' },
+      { success: false, error: 'Verification failed' },
       { status: 500 }
     );
   }

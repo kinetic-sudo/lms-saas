@@ -1,7 +1,7 @@
 'use server'
 
 import { auth, clerkClient, currentUser } from '@clerk/nextjs/server';
-import { razorpay, CLERK_TO_RAZORPAY_PLAN_MAP, ClerkPlanKey } from '@/lib/razorpay/config';
+import { razorpay } from '@/lib/razorpay/config';
 import { getClerkPlanByKey } from '../clerk/plan';
 import { CreateSupabaseServiceClient } from '../supabase';
 import crypto from 'crypto';
@@ -10,53 +10,69 @@ import crypto from 'crypto';
 
 // Create a Razorpay order based on Clerk plan
 export async function createRazorpayOrderForClerkPlan(planKey: string) {
-    try {
-      const { userId } = await auth();
-      const user = await currentUser();
-      
-      if (!userId || !user) throw new Error('Unauthorized');
-  
-      // 1. Fetch Plan Details from Clerk (Single Source of Truth)
-      const clerkPlan = await getClerkPlanByKey(planKey);
-      
-      if (!clerkPlan) {
-          throw new Error(`Plan ${planKey} not found in Clerk`);
-      }
-  
-      // 2. Calculate Amount
-      // Clerk usually stores prices in cents/smallest unit. 
-      // Razorpay also expects amount in smallest unit (paise).
-      // Ensure conversion rates if Clerk is USD and Razorpay is INR.
-      // For now, assuming 1:1 or handled conversion:
-      const amount = clerkPlan.monthlyPrice; 
-  
-      // 3. Create Razorpay Order
-      const order = await razorpay.orders.create({
-        amount: amount, 
-        currency: clerkPlan.currency || 'INR',
-        receipt: `recipt_${userId}_${Date.now()}`,
-        notes: {
-          userId: userId,
-          userEmail: user.emailAddresses[0]?.emailAddress,
-          planKey: planKey,
-          clerkPlanId: clerkPlan.id
-        }
-      });
-  
-      return {
-          success: true,
-          orderId: order.id,
-          amount: order.amount,
-          currency: order.currency,
-          planName: clerkPlan.name,
-          key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID
-      };
-  
-    } catch (error) {
-      console.error('Razorpay Order Creation Failed:', error);
-      return { success: false, error: 'Failed to create order' };
+  try {
+    const { userId } = await auth();
+    const user = await currentUser();
+    
+    if (!userId || !user) {
+      throw new Error('User not authenticated');
     }
+
+    // Get Clerk plan details
+    const clerkPlan = await getClerkPlanByKey(planKey);
+    
+    if (!clerkPlan) {
+      throw new Error(`Plan ${planKey} not found in Clerk`);
+    }
+
+    // Free plan doesn't need payment
+    if (planKey === 'basic') {
+      throw new Error('Free plan does not require payment');
+    }
+
+    console.log('Creating Razorpay order:', {
+      planKey,
+      planName: clerkPlan.name,
+      amountINR: clerkPlan.monthlyPriceINR,
+    });
+
+    const timestamp = Date.now().toString().slice(-8); // Last 8 digits
+    const userIdShort = userId.slice(-10); // Last 10 chars of user ID
+    const receipt = `${planKey}_${userIdShort}_${timestamp}`; // Max ~35 chars
+
+    // Create Razorpay order with INR amount in paise
+    const order = await razorpay.orders.create({
+      amount: clerkPlan.monthlyPriceINR, // Amount in paise
+      currency: 'INR',
+      receipt: receipt,
+      notes: {
+        userId: userId,
+        userEmail: user.emailAddresses[0]?.emailAddress || '',
+        planKey: planKey,
+        clerkPlanId: clerkPlan.id,
+        planName: clerkPlan.name,
+      },
+    });
+
+    console.log('Razorpay order created successfully:', order.id);
+
+    return {
+      success: true,
+      orderId: order.id,
+      amount: order.amount,
+      currency: order.currency,
+      planName: clerkPlan.name,
+      planKey: planKey,
+    };
+
+  } catch (error: any) {
+    console.error('Razorpay Order Creation Failed:', error);
+    return { 
+      success: false, 
+      error: error.message || 'Failed to create order' 
+    };
   }
+}
 
 // Verify Razorpay payment signature
 export async function verifyRazorpayPayment(
@@ -65,7 +81,7 @@ export async function verifyRazorpayPayment(
   signature: string
 ) {
   try {
-    const secret = process.env.RAZORPAY_SECRET_KEY!;
+    const secret = process.env.RAZORPAY_KEY_SECRET!;
     const generated_signature = crypto
       .createHmac('sha256', secret)
       .update(`${orderId}|${paymentId}`)
@@ -144,6 +160,8 @@ export async function activateClerkSubscription(
     }, {
       onConflict: 'user_id',
     });
+
+    console.log('Subscription activated successfully for user:', userId);
 
     return { success: true };
   } catch (error) {
