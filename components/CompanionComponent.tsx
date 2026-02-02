@@ -32,7 +32,7 @@ interface CompanionComponentProps {
 
 interface SavedMessage {
     id?: string;
-    role: string;
+    role: 'user' | 'assistant'
     content: string;
     timestamp: string;
 }
@@ -136,11 +136,11 @@ const CompanionComponent = ({
             if (message.type === 'transcript' && message.transcriptType === 'final') {
                 const newMessage: SavedMessage = {
                     id: `${Date.now()}-${Math.random()}`,
-                    role: message.role,
+                    // FIX: Add 'as ...' type assertion here
+                    role: message.role as 'user' | 'assistant', 
                     content: message.transcript,
                     timestamp: new Date().toISOString()
                 }
-                // console.log('New message received:', newMessage);
                 setMessages((prev) => [newMessage, ...prev])
             }
         }
@@ -206,7 +206,7 @@ const CompanionComponent = ({
         setShowResumePrompt(false);
         
         // Pass the conversation history to handleCall
-        handleCall(savedConversation?.messages);
+        handleCall(savedConversation?.messages as SavedMessage[]);
     }
     
     const handleStartFresh = () => {
