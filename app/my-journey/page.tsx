@@ -2,54 +2,67 @@ import { getUserCompanion, getUserSessions, getAllConversationHistories } from "
 import { currentUser } from "@clerk/nextjs/server"
 import { redirect } from "next/navigation"
 import Image from "next/image"
-import JourneyTabs from "@/components/JourneyTab" // Import the new component
+import JourneyTabs from "@/components/JourneyTab" 
 
 const Profile = async () => {
   const user = await currentUser()
 
   if(!user) redirect('/sign-in')
 
-  // Fetch standard data
+  // --- 1. GET PLAN STATUS ---
+  const activePlan = (user.publicMetadata?.plan as string) || 'Basic';
+  const isPro = activePlan === 'pro' || activePlan === 'intermediate';
+
   const companions = await getUserCompanion(user.id)
   const sessionHistory = await getUserSessions(user.id)
 
-  // Fetch saved conversations safely
   let savedConversations = [];
   try {
-    savedConversations = await getAllConversationHistories();
+    // Only fetch history if they are on a paid plan
+    if (isPro) {
+        savedConversations = await getAllConversationHistories();
+    }
   } catch (error) {
-    console.log("Could not fetch conversation history:", error);
-    // User might not have permission or subscription, default to empty array
     savedConversations = [];
   }
+
+  // --- 2. BADGE STYLING ---
+  const badgeColor = activePlan === 'pro' ? 'bg-violet-100 text-violet-700 border-violet-200' : 
+                     activePlan === 'intermediate' ? 'bg-orange-100 text-orange-700 border-orange-200' : 
+                     'bg-slate-100 text-slate-600 border-slate-200';
 
   return (
     <main className="w-full max-w-5xl mx-auto flex flex-col gap-12 pb-20">
       
-      {/* 1. Header & Stats (Stays Static) */}
       <section className="flex flex-col gap-8">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-6">
             <div className="relative">
                 <Image 
-                  className="rounded-full border-2 border-white shadow-sm" 
+                  className="rounded-full border-4 border-white shadow-lg" 
                   src={user.imageUrl} 
                   alt={user.firstName!} 
-                  width={80} 
-                  height={80}
+                  width={100} 
+                  height={100}
                 />
-                <div className="absolute bottom-1 right-1 size-4 bg-green-500 border-2 border-white rounded-full"></div>
             </div>
-            <div>
-                <h1 className="font-bold text-2xl text-[#111111]">
-                  {user.firstName} {user.lastName}
-                </h1>
-                <p className="text-sm font-medium text-slate-400">
+            
+            <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-3">
+                    <h1 className="font-bold text-3xl text-[#111111]">
+                      {user.firstName} {user.lastName}
+                    </h1>
+                    {/* --- PLAN BADGE --- */}
+                    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${badgeColor}`}>
+                        {activePlan} Plan
+                    </span>
+                </div>
+                <p className="text-base font-medium text-slate-400">
                   {user.emailAddresses[0].emailAddress}
                 </p>
             </div>
         </div>
 
-        <div className="flex items-center gap-16 border-b border-slate-100 pb-8">
+        <div className="flex items-center gap-16 border-b border-slate-100 pb-8 pl-4">
             <div className="flex flex-col gap-1">
                 <span className="text-4xl font-black text-indigo-500 tracking-tight">
                     {String(sessionHistory.length).padStart(2, '0')}
@@ -70,7 +83,6 @@ const Profile = async () => {
         </div>
       </section>
 
-      {/* 2. Tabs Section (Dynamic Content) */}
       <JourneyTabs 
         sessions={sessionHistory} 
         companions={companions} 

@@ -1,9 +1,11 @@
-// components/SubscriptionHandler.tsx
 'use client'
 
 import { useEffect } from 'react';
 import { useUser } from '@clerk/nextjs';
+import { useRouter } from 'next/navigation';
+import { createRazorpayOrderForClerkPlan, activateClerkSubscription } from '@/lib/action/subscription.action';
 import Script from 'next/script';
+import { toast } from 'sonner';
 
 declare global {
   interface Window {
@@ -13,130 +15,97 @@ declare global {
 
 export default function SubscriptionHandler() {
   const { user } = useUser();
+  const router = useRouter();
 
   useEffect(() => {
-    const handleButtonClick = async (event: MouseEvent) => {
+    const handleSubscribeClick = async (event: MouseEvent) => {
       const target = event.target as HTMLElement;
-      const button = target.closest('button.razorpay-btn') as HTMLButtonElement;
       
+      // Find the button (handling click on inner elements like spans)
+      const button = target.closest('.razorpay-btn') as HTMLButtonElement;
       if (!button) return;
 
       const planKey = button.getAttribute('data-plan');
-      
-      if (!planKey || planKey === 'basic') {
-        return;
-      }
+      if (!planKey || planKey === 'basic') return;
 
       event.preventDefault();
       event.stopPropagation();
 
-      // Disable button
+      // UI Feedback
+      const originalText = button.innerText;
+      button.innerText = "Processing...";
       button.disabled = true;
-      button.textContent = 'Processing...';
 
       try {
         await handleRazorpayPayment(planKey);
       } catch (error) {
         console.error('Payment error:', error);
-        alert('Failed to initiate payment. Please try again.');
+        toast.error('Failed to initiate payment.');
       } finally {
+        // Reset button state
+        button.innerText = originalText;
         button.disabled = false;
-        button.textContent = 'Switch to this plan';
       }
     };
 
-    document.addEventListener('click', handleButtonClick, true);
-
-    return () => {
-      document.removeEventListener('click', handleButtonClick, true);
-    };
+    document.addEventListener('click', handleSubscribeClick, true);
+    return () => document.removeEventListener('click', handleSubscribeClick, true);
   }, [user]);
 
   const handleRazorpayPayment = async (planKey: string) => {
-    try {
-      console.log('Creating Razorpay order for plan:', planKey);
-      
-      // Create order via API route
-      const orderResponse = await fetch('/api/razorpay/create-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planKey }),
-      });
+    // 1. Create Order via Server Action
+    const order = await createRazorpayOrderForClerkPlan(planKey);
 
-      const orderData = await orderResponse.json();
-
-      console.log('Order response:', orderData);
-
-      if (!orderResponse.ok || !orderData.success) {
-        throw new Error(orderData.error || 'Failed to create order');
-      }
-
-      // Check if Razorpay SDK is loaded
-      if (!window.Razorpay) {
-        throw new Error('Razorpay SDK not loaded. Please refresh the page.');
-      }
-
-      // Initialize Razorpay checkout
-      const options = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
-        amount: orderData.amount,
-        currency: orderData.currency,
-        name: 'SkillForge',
-        description: `${orderData.planName} Subscription`,
-        order_id: orderData.orderId,
-        prefill: {
-          name: user?.fullName || '',
-          email: user?.emailAddresses[0]?.emailAddress || '',
-        },
-        theme: {
-          color: '#111111',
-        },
-        handler: async function (response: any) {
-          try {
-            console.log('Payment successful:', response);
-            
-            // Verify payment
-            const verifyResponse = await fetch('/api/razorpay/verify-payment', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-                planKey: planKey,
-              }),
-            });
-
-            const verifyData = await verifyResponse.json();
-
-            if (verifyResponse.ok && verifyData.success) {
-              alert('Subscription activated successfully! 🎉');
-              window.location.href = '/my-journey';
-            } else {
-              alert('Payment verification failed. Please contact support.');
-            }
-          } catch (error) {
-            console.error('Verification error:', error);
-            alert('Something went wrong. Please contact support.');
-          }
-        },
-        modal: {
-          ondismiss: function() {
-            console.log('Payment modal closed by user');
-          }
-        }
-      };
-
-      console.log('Opening Razorpay checkout...');
-
-      const razorpayInstance = new window.Razorpay(options);
-      razorpayInstance.open();
-
-    } catch (error: any) {
-      console.error('Payment initialization error:', error);
-      throw error;
+    if (!order.success) {
+      throw new Error(order.error || 'Failed to create order');
     }
+
+    // 2. Open Razorpay Gateway
+    const options = {
+      key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
+      amount: order.amount,
+      currency: order.currency,
+      name: 'SkillForge',
+      description: `Subscribe to ${order.planName}`,
+      order_id: order.orderId,
+      prefill: {
+        name: user?.fullName || '',
+        email: user?.emailAddresses[0]?.emailAddress || '',
+      },
+      theme: { color: '#111111' },
+      handler: async function (response: any) {
+        try {
+          // 3. Verify & Activate via Server Action
+          const result = await activateClerkSubscription(planKey, {
+            paymentId: response.razorpay_payment_id,
+            orderId: response.razorpay_order_id,
+            signature: response.razorpay_signature
+          });
+
+          if (result.success) {
+            toast.success("Subscription Activated!");
+            // REFRESH DATA to show the 'Tick Mark' immediately
+            router.refresh(); 
+            // Optional: Redirect to profile
+            // router.push('/my-journey');
+          } else {
+            toast.error('Payment verification failed.');
+          }
+        } catch (error) {
+          console.error('Verification error:', error);
+          toast.error('Activation failed. Please contact support.');
+        }
+      },
+      modal: {
+        ondismiss: function() {
+          toast.info("Payment cancelled");
+        }
+      }
+    };
+
+    const rzp = new window.Razorpay(options);
+    rzp.open();
   };
 
-  return <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive" />;
+  return <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" />;
 }

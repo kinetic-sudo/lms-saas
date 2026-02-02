@@ -73,18 +73,10 @@ export async function getClerkSubscriptionPlans(): Promise<ClerkPlan[]> {
 }
 
 export async function getClerkPlanByKey(planKey: string): Promise<ClerkPlan | null> {
-  try {
-    const plans = await getClerkSubscriptionPlans();
-    const plan = plans.find(p => p.key === planKey);
-    
+    const plan = SUBSCRIPTION_PLANS.find(p => p.key === planKey);
     if (!plan) {
-      console.error(`Plan with key "${planKey}" not found. Available plans:`, plans.map(p => p.key));
-      return null;
+        console.error(`Plan key "${planKey}" not found in local config.`);
+        return null;
     }
-    
     return plan;
-  } catch (error) {
-    console.error('Error fetching Clerk plan by key:', error);
-    return null;
   }
-}

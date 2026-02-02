@@ -4,12 +4,11 @@ import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import NavItems from "./NavItems"
-import { SignInButton } from "@clerk/nextjs"
-import { SignedIn, SignedOut, UserButton } from "@clerk/clerk-react"
-import { Bell, Search, Menu, X } from "lucide-react"
+import { SignInButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs"
+import { Bell, Search, Menu, X, CreditCard } from "lucide-react"
+import { UserProfileSubscription } from "@/components/UserProfileSubscription" // Custom Component
 
 const Navbar = () => {
-  // State for mobile menu
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   return (
@@ -29,26 +28,27 @@ const Navbar = () => {
                 </div>
             </Link>
 
-            {/* CENTER: Desktop Navigation (Hidden on Mobile) */}
+            {/* CENTER: Desktop Navigation */}
             <div className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
                 <NavItems />
             </div>
 
-            {/* RIGHT: Actions, Auth & Mobile Toggle */}
+            {/* RIGHT: Actions & Auth */}
             <div className="flex items-center gap-4 sm:gap-6 z-50">
                 
-                {/* Icons - Hidden on very small screens to save space if needed */}
+                {/* Icons */}
                 <button className="text-slate-400 hover:text-black transition-colors hidden sm:block">
                     <Search size={20} />
                 </button>
                 <button className="text-slate-400 hover:text-black transition-colors relative hidden sm:block">
                     <Bell size={20} />
+                    {/* Notification Dot */}
                     <span className="absolute top-0 right-0 size-2 bg-red-500 rounded-full border-2 border-white"></span>
                 </button>
                 
                 <div className="h-6 w-px bg-slate-200 hidden sm:block"></div>
 
-                {/* Auth */}
+                {/* Auth Buttons */}
                 <div className="flex items-center">
                     <SignedOut>
                         <SignInButton>
@@ -57,14 +57,31 @@ const Navbar = () => {
                             </button>
                         </SignInButton>
                     </SignedOut>
+                    
                     <SignedIn>
                         <UserButton 
-                            appearance={{ elements: { avatarBox: "size-9 border-2 border-slate-100" } }}
-                        />
+                            appearance={{ 
+                                elements: { 
+                                    avatarBox: "size-9 border-2 border-slate-100",
+                                    // OPTIONAL: Try to hide billing via class if Clerk exposes it
+                                    // scrollBox: "no-scrollbar"
+                                } 
+                            }}
+                        >
+                            {/* Insert Your Custom Subscription Tab */}
+                            <UserButton.UserProfilePage 
+                                label="Subscription" 
+                                labelIcon={<CreditCard size={15} />} 
+                                url="subscription"
+                            >
+                                <UserProfileSubscription />
+                            </UserButton.UserProfilePage>
+
+                        </UserButton>
                     </SignedIn>
                 </div>
 
-                {/* MOBILE MENU TOGGLE (Visible only on small screens) */}
+                {/* Mobile Toggle */}
                 <button 
                     className="md:hidden text-slate-500 hover:text-black ml-2"
                     onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -74,12 +91,10 @@ const Navbar = () => {
             </div>
         </nav>
 
-        {/* MOBILE MENU DROPDOWN */}
+        {/* Mobile Menu */}
         {isMobileMenuOpen && (
             <div className="md:hidden absolute top-20 left-0 w-full bg-white border-b border-slate-100 shadow-xl p-6 flex flex-col animate-in slide-in-from-top-5">
                 <NavItems className="flex-col items-start gap-6 text-lg" />
-                
-                {/* Mobile-only extra icons if you hid them in top bar */}
                 <div className="flex items-center gap-6 mt-6 pt-6 border-t border-slate-100">
                      <div className="flex items-center gap-2 text-slate-500 font-medium">
                         <Search size={20} /> Search
