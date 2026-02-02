@@ -1,9 +1,10 @@
 import { auth, currentUser } from "@clerk/nextjs/server"
 import { redirect } from "next/navigation"
-import { Check, CheckCircle2, AlertCircle } from "lucide-react" // Added CheckCircle2
+import { Check, CheckCircle2, AlertCircle } from "lucide-react"
 import Link from "next/link"
 import SubscriptionHandler from "@/components/SubscriptionHandler"
-import { getClerkSubscriptionPlans } from "@/lib/clerk/plan"
+// 1. Import the Type interface here
+import { getClerkSubscriptionPlans, ClerkPlan } from "@/lib/clerk/plan"
 
 const Subscription = async () => {
   const { userId } = await auth();
@@ -11,14 +12,15 @@ const Subscription = async () => {
 
   if(!userId || !user) redirect('/sign-in');
 
-  // --- 1. GET ACTIVE PLAN FROM METADATA ---
   const activePlanKey = (user.publicMetadata?.plan as string) || 'basic';
 
-  let plans = [];
-  let error = null;
+  // 2. Explicitly type the array so TS knows structure (features, price, etc.)
+  let plans: ClerkPlan[] = [];
+  let error: string | null = null;
 
   try {
     plans = await getClerkSubscriptionPlans();
+    // TS now knows 'a' and 'b' are ClerkPlans, so .monthlyPriceINR is valid
     plans.sort((a, b) => a.monthlyPriceINR - b.monthlyPriceINR);
   } catch (err: any) {
     error = err.message;
@@ -43,15 +45,14 @@ const Subscription = async () => {
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-7xl items-start">
+            {/* TS now infers 'plan' is a ClerkPlan */}
             {plans.map((plan, index) => {
                 const isFree = plan.monthlyPriceINR === 0;
-                // --- 2. CHECK IF PURCHASED ---
                 const isPurchased = plan.key === activePlanKey;
                 
                 let containerClasses = "flex flex-col p-8 rounded-[2.5rem] h-full justify-between gap-8 transition-transform duration-300 border relative ";
                 let checkColor = "text-slate-500";
                 
-                // --- 3. ACTIVE PLAN STYLING ---
                 if (isPurchased) {
                     containerClasses += "bg-white border-2 border-green-500 shadow-xl scale-[1.02] ring-4 ring-green-500/10 z-10";
                     checkColor = "text-green-600";
@@ -80,7 +81,6 @@ const Subscription = async () => {
                                     </p>
                                 </div>
 
-                                {/* --- 4. SHOW BADGE (Active or Popular) --- */}
                                 {isPurchased ? (
                                     <div className="bg-green-100 text-green-700 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider flex items-center gap-1 shrink-0">
                                         <CheckCircle2 size={12} /> Active
@@ -100,6 +100,7 @@ const Subscription = async () => {
                             </div>
                             
                             <ul className="flex flex-col gap-4 mt-6">
+                                {/* TS now knows plan.features is string[], so feature is string and i is number */}
                                 {plan.features.map((feature, i) => (
                                     <FeatureItem key={i} text={feature} color={checkColor} />
                                 ))}
