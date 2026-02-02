@@ -22,20 +22,23 @@ export const getAllCompanions = async ({ limit= 10, page= 1, subject, topic }: G
     const { userId } = await auth();
     const supabase = CreateSupabaseClient();
 
+    const subjectString = Array.isArray(subject) ? subject[0] : subject;
+    const topicString = Array.isArray(topic) ? topic[0] : topic;
+
     // If user is not logged in, return dummy data
     if (!userId) {
         let filteredDummies = [...DUMMY_COMPANIONS];
         
         // Apply filters to dummy data
-        if (subject) {
+        if (subjectString) {
             filteredDummies = filteredDummies.filter(c => 
-                c.subject.toLowerCase().includes(subject.toLowerCase())
+                c.subject.toLowerCase().includes(subjectString.toLowerCase())
             );
         }
-        if (topic) {
+        if (topicString) {
             filteredDummies = filteredDummies.filter(c => 
-                c.topic.toLowerCase().includes(topic.toLowerCase()) ||
-                c.name.toLowerCase().includes(topic.toLowerCase())
+                c.topic.toLowerCase().includes(topicString.toLowerCase()) ||
+                c.name.toLowerCase().includes(topicString.toLowerCase())
             );
         }
         
@@ -54,15 +57,15 @@ export const getAllCompanions = async ({ limit= 10, page= 1, subject, topic }: G
         let filteredDummies = [...DUMMY_COMPANIONS];
         
         // Apply filters to dummy data
-        if (subject) {
+        if (subjectString) {
             filteredDummies = filteredDummies.filter(c => 
-                c.subject.toLowerCase().includes(subject.toLowerCase())
+                c.subject.toLowerCase().includes(subjectString.toLowerCase())
             );
         }
-        if (topic) {
+        if (topicString) {
             filteredDummies = filteredDummies.filter(c => 
-                c.topic.toLowerCase().includes(topic.toLowerCase()) ||
-                c.name.toLowerCase().includes(topic.toLowerCase())
+                c.topic.toLowerCase().includes(topicString.toLowerCase()) ||
+                c.name.toLowerCase().includes(topicString.toLowerCase())
             );
         }
         
@@ -208,7 +211,7 @@ export const NewCompanionPermissions = async () => {
 
     
     if (!userId || !user) return false;
-    
+
     const planKey = (user.publicMetadata?.plan as string) || 'basic';
     
     const supabase = CreateSupabaseClient();
