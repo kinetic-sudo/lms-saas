@@ -1,6 +1,10 @@
 'use client'
 
 import { useUser } from "@clerk/nextjs"
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { toast } from "sonner"
+import { cancelSubscription } from "@/lib/action/subscription.action" // Import the action
 import { 
   CheckCircle2, 
   AlertCircle, 
@@ -8,11 +12,15 @@ import {
   Calendar, 
   Download, 
   FileText,
-  Landmark
+  Landmark,
+  XCircle,
+  Loader2
 } from "lucide-react"
 
 export const UserProfileSubscription = () => {
   const { user } = useUser();
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
 
   if (!user) return null;
 
@@ -24,12 +32,10 @@ export const UserProfileSubscription = () => {
     ? new Date(md.subscriptionStartDate as string).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
     : 'N/A';
   
-  // New Payment Details (You'll need to save these in your action to see real data)
   const paymentMethod = (md.paymentMethod as string) || 'Razorpay Secure'; 
   const cardLast4 = (md.cardLast4 as string) || '••••';
   const paymentId = (md.razorpayPaymentId as string) || 'N/A';
 
-  // Helper Logic
   const isPro = planKey === 'pro';
   const isInter = planKey === 'intermediate';
   const isFree = planKey === 'basic';
@@ -37,13 +43,48 @@ export const UserProfileSubscription = () => {
   const planName = isPro ? 'Pro Companion' : isInter ? 'Intermediate Learner' : 'Basic Plan';
   const amount = isPro ? '₹4,000' : isInter ? '₹1,500' : '₹0';
 
+  // --- CANCEL HANDLER ---
+  const handleCancel = async () => {
+    if (!confirm("Are you sure you want to cancel? You will lose access to premium features immediately.")) return;
+    
+    setLoading(true);
+    try {
+        const res = await cancelSubscription();
+        if (res.success) {
+            toast.success("Subscription canceled successfully");
+            await user.reload(); // Refresh Clerk user data
+            router.refresh();    // Refresh Next.js UI
+        } else {
+            toast.error("Failed to cancel plan");
+        }
+    } catch (error) {
+        toast.error("Something went wrong");
+    } finally {
+        setLoading(false);
+    }
+  };
+
   return (
     <div className="w-full p-8 space-y-8 h-full overflow-y-auto">
       
       {/* HEADER */}
-      <div>
-        <h1 className="text-xl font-bold text-slate-900">Subscription & Billing</h1>
-        <p className="text-slate-500 text-sm">Manage your plan and payment details.</p>
+      <div className="flex items-center justify-between">
+        <div>
+            <h1 className="text-xl font-bold text-slate-900">Subscription & Billing</h1>
+            <p className="text-slate-500 text-sm">Manage your plan and payment details.</p>
+        </div>
+        
+        {/* CANCEL BUTTON (Only show if Paid) */}
+        {!isFree && (
+            <button 
+                onClick={handleCancel} 
+                disabled={loading}
+                className="text-red-600 hover:text-red-700 hover:bg-red-50 px-4 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-2"
+            >
+                {loading ? <Loader2 size={16} className="animate-spin"/> : <XCircle size={16} />}
+                {loading ? "Canceling..." : "Cancel Subscription"}
+            </button>
+        )}
       </div>
 
       {/* 1. ACTIVE PLAN CARD */}
@@ -65,7 +106,6 @@ export const UserProfileSubscription = () => {
               {amount}<span className="text-slate-400 text-sm">/month</span>
             </p>
           </div>
-          {/* Visual Icon */}
           <div className="bg-slate-50 p-3 rounded-full border border-slate-100">
             <Landmark className="text-slate-400" size={24} />
           </div>
@@ -103,7 +143,6 @@ export const UserProfileSubscription = () => {
           <div className="flex items-center justify-between p-4 bg-white border border-slate-200 rounded-xl">
             <div className="flex items-center gap-4">
               <div className="w-12 h-8 bg-slate-100 rounded flex items-center justify-center border border-slate-200">
-                {/* Generic Card Icon */}
                 <CreditCard size={18} className="text-slate-500" />
               </div>
               <div>
@@ -134,7 +173,6 @@ export const UserProfileSubscription = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-slate-100">
-                {/* Dynamically generating row from metadata */}
                 <tr>
                   <td className="px-4 py-3 text-slate-600">{startDate}</td>
                   <td className="px-4 py-3 text-slate-900 font-medium">

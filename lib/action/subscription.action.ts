@@ -3,8 +3,10 @@
 import { auth, clerkClient, currentUser } from '@clerk/nextjs/server';
 import { razorpay } from '@/lib/razorpay/config';
 import { getClerkPlanByKey } from '../clerk/plan';
-import { CreateSupabaseServiceClient } from '../supabase';
+import { CreateSupabaseClient, CreateSupabaseServiceClient } from '../supabase';
+import { revalidatePath } from 'next/cache';
 import crypto from 'crypto';
+import plans from 'razorpay/dist/types/plans';
 
 
 
@@ -220,4 +222,33 @@ export async function getCurrentSubscription() {
     console.error('Error getting subscription:', error);
     return null;
   }
+}
+
+export async function cancelSubscription() {
+    try {
+        const {userId} = await auth();
+        if (!userId) throw new Error('Unauthorized')
+        const client = await clerkClient()
+
+        await client.users.updateUser(userId, {
+            publicMetadata: {
+                plan: 'basic',
+                subscriptionStatus: 'cancel',
+                subscriptionEndDate: new Date().toISOString()
+            }
+        })
+
+        const supabase = CreateSupabaseClient()
+        await supabase.from('subscriptions')
+        .update({status: 'canceled', plan_key: 'basic'})
+        .eq('user_id', userId)
+
+
+        revalidatePath('/');
+
+        return { success: true } 
+    } catch (error) {
+        console.error('Cancellation failed:', error);
+        return { success: false, error: 'failed to cancel Subscription'}
+    }
 }
