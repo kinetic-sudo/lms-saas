@@ -11,7 +11,10 @@ import plans from 'razorpay/dist/types/plans';
 
 
 // Create a Razorpay order based on Clerk plan
-export async function createRazorpayOrderForClerkPlan(planKey: string) {
+export async function createRazorpayOrderForClerkPlan(
+  planKey: string,
+  billingCycle: 'monthly' | 'annual' = 'monthly'
+) {
   try {
     const { userId } = await auth();
     const user = await currentUser();
@@ -20,37 +23,42 @@ export async function createRazorpayOrderForClerkPlan(planKey: string) {
       throw new Error('User not authenticated');
     }
 
-    // Get Clerk plan details
     const clerkPlan = await getClerkPlanByKey(planKey);
     
     if (!clerkPlan) {
       throw new Error(`Plan ${planKey} not found in Clerk`);
     }
 
-    // Free plan doesn't need payment
     if (planKey === 'basic') {
       throw new Error('Free plan does not require payment');
     }
 
+    // Calculate amount based on billing cycle
+    // Convert annualPrice (USD cents) to INR paise using conversion rate 91
+    const amount = billingCycle === 'annual' 
+      ? Math.round(clerkPlan.annualPrice * 91)
+      : clerkPlan.monthlyPriceINR;
+
     console.log('Creating Razorpay order:', {
       planKey,
+      billingCycle,
       planName: clerkPlan.name,
-      amountINR: clerkPlan.monthlyPriceINR,
+      amountINR: amount,
     });
 
-    const timestamp = Date.now().toString().slice(-8); // Last 8 digits
-    const userIdShort = userId.slice(-10); // Last 10 chars of user ID
-    const receipt = `${planKey}_${userIdShort}_${timestamp}`; // Max ~35 chars
+    const timestamp = Date.now().toString().slice(-8);
+    const userIdShort = userId.slice(-10);
+    const receipt = `${planKey}_${billingCycle}_${userIdShort}_${timestamp}`;
 
-    // Create Razorpay order with INR amount in paise
     const order = await razorpay.orders.create({
-      amount: clerkPlan.monthlyPriceINR, // Amount in paise
+      amount: amount,
       currency: 'INR',
       receipt: receipt,
       notes: {
         userId: userId,
         userEmail: user.emailAddresses[0]?.emailAddress || '',
         planKey: planKey,
+        billingCycle: billingCycle,
         clerkPlanId: clerkPlan.id,
         planName: clerkPlan.name,
       },
@@ -65,6 +73,7 @@ export async function createRazorpayOrderForClerkPlan(planKey: string) {
       currency: order.currency,
       planName: clerkPlan.name,
       planKey: planKey,
+      billingCycle: billingCycle,
     };
 
   } catch (error: any) {
@@ -75,6 +84,7 @@ export async function createRazorpayOrderForClerkPlan(planKey: string) {
     };
   }
 }
+
 
 // Verify Razorpay payment signature
 export async function verifyRazorpayPayment(
@@ -99,10 +109,12 @@ export async function verifyRazorpayPayment(
 // After payment success, sync with Clerk
 export async function activateClerkSubscription(
   clerkPlanKey: string,
+  billingCycle: 'monthly' | 'annual',
   razorpayData: {
     paymentId: string;
     orderId: string;
     signature: string;
+
   }
 ) {
   try {
@@ -127,7 +139,8 @@ export async function activateClerkSubscription(
     const clerkPlan = await getClerkPlanByKey(clerkPlanKey);
     if (!clerkPlan) {
       throw new Error('Plan not found');
-    }
+    };
+
 
     let paymentMethodLabel = 'Online Payment';
     let cardLast4 = '••••';
@@ -157,8 +170,8 @@ export async function activateClerkSubscription(
       console.error("Failed to fetch payment details", err);
     }
 
-    const subscriptionStartDate = new Date();
-    const subscriptionEndDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const daysToAdd = billingCycle === 'annual' ? 365 : 30;
+    const subscriptionEndDate = new Date(Date.now() + daysToAdd * 24 * 60 * 60 * 1000);
     
     const client = await clerkClient();
 
@@ -168,9 +181,10 @@ export async function activateClerkSubscription(
         plan: clerkPlanKey,
         planId: clerkPlan.id,
         subscriptionStatus: 'active',
+        billingCycle: billingCycle,
         razorpayPaymentId: razorpayData.paymentId,
         razorpayOrderId: razorpayData.orderId,
-        subscriptionStartDate: subscriptionStartDate.toISOString(),
+        subscriptionStartDate: new Date().toISOString(),
         subscriptionEndDate: subscriptionEndDate.toISOString(),
         paymentMethod: paymentMethodLabel,
         cardLast4: cardLast4,
@@ -193,7 +207,7 @@ export async function activateClerkSubscription(
       card_last4: cardLast4,
       amount_paid: paymentAmount,
       currency: 'INR',
-      activated_at: subscriptionStartDate.toISOString(),
+      activated_at: subscriptionEndDate.toISOString(),
       expires_at: subscriptionEndDate.toISOString(),
       next_billing_date: subscriptionEndDate.toISOString(),
       auto_renew: false, // Manual renewal for now
