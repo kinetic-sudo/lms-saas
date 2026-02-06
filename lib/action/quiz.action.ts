@@ -2,6 +2,7 @@
 
 import { auth } from '@clerk/nextjs/server';
 import { CreateSupabaseServiceClient } from '../supabase';
+import { callGemini } from '../AI/gemini';
 
 // ============================
 // GENERATE QUIZ FROM SESSION
@@ -294,164 +295,151 @@ export async function getQuizHistory() {
 // ============================
 
 async function extractKeyConceptsFromSession(
-  messages: Array<{role: string, content: string}>
-): Promise<string[]> {
-  const conversationText = messages
-    .filter(m => m.role === 'assistant')
-    .map(m => m.content)
-    .join('\n')
-    .substring(0, 2000);
-
-  try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY!,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-3-haiku-20240307',
-        max_tokens: 500,
-        messages: [{
-          role: 'user',
-          content: `Extract 5-7 key concepts taught in this session. Return ONLY a JSON array of strings, nothing else.
-
-Session:
-${conversationText}
-
-Format: ["concept1", "concept2", "concept3"]`
-        }]
-      })
-    });
-
-    const data = await response.json();
-    const content = data.content[0].text;
-    
-    const jsonMatch = content.match(/\[[\s\S]*\]/);
-    if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
+    messages: Array<{role: string, content: string}>
+  ): Promise<string[]> {
+    const conversationText = messages
+      .filter(m => m.role === 'assistant')
+      .map(m => m.content)
+      .join('\n')
+      .substring(0, 2000);
+  
+    try {
+      const prompt = `Extract 5-7 key concepts taught in this learning session. 
+  Return ONLY a valid JSON array of strings, with no additional text or explanation.
+  
+  Session content:
+  ${conversationText}
+  
+  Required format (respond with ONLY this, nothing else):
+  ["concept1", "concept2", "concept3", "concept4", "concept5"]
+  
+  Example response:
+  ["Python loops", "Range function", "Conditional logic", "Break statements", "Iteration control"]`;
+  
+      const result = await callGemini(prompt, 500, 0.5);
+      
+      console.log('Gemini concepts response:', result);
+      
+      // Extract JSON array from response
+      const jsonMatch = result.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        const concepts = JSON.parse(jsonMatch[0]);
+        console.log('✅ Extracted concepts:', concepts);
+        return concepts;
+      }
+      
+      console.warn('⚠️ Could not parse concepts, using fallback');
+      return ['General concepts from session'];
+    } catch (error) {
+      console.error('❌ Error extracting concepts:', error);
+      return ['Session content'];
     }
-    
-    return ['General concepts from session'];
-  } catch (error) {
-    console.error('Error extracting concepts:', error);
-    return ['Session content'];
   }
-}
-
-async function generateSessionSummary(
-  messages: Array<{role: string, content: string}>,
-  topic: string
-): Promise<string> {
-  const conversationText = messages
-    .map(m => `${m.role}: ${m.content}`)
-    .join('\n')
-    .substring(0, 2000);
-
-  try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY!,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-3-haiku-20240307',
-        max_tokens: 300,
-        messages: [{
-          role: 'user',
-          content: `Create a 3-point summary of this learning session about "${topic}". 
-Each point should be one clear sentence starting with a key learning.
-
-Format:
-- Point 1
-- Point 2
-- Point 3
-
-Session:
-${conversationText}`
-        }]
-      })
-    });
-
-    const data = await response.json();
-    return data.content[0].text;
-  } catch (error) {
-    console.error('Error generating summary:', error);
-    return `Session about ${topic} completed successfully.`;
-  }
-}
-
-async function generateQuestionsFromConcepts(
-  concepts: string[],
-  sessionMessages: Array<{role: string, content: string}>,
-  topic: string,
-  subject: string
-): Promise<any[]> {
-  const conversationText = sessionMessages
-    .map(m => m.content)
-    .join('\n')
-    .substring(0, 3000);
-
-  try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY!,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-3-sonnet-20240229',
-        max_tokens: 2000,
-        messages: [{
-          role: 'user',
-          content: `Create 5 multiple-choice quiz questions based on this "${topic}" session in ${subject}.
-
-Concepts: ${concepts.join(', ')}
-
-Session:
-${conversationText}
-
-Return ONLY valid JSON array:
-[
-  {
-    "question_text": "Clear question?",
-    "question_type": "multiple_choice",
-    "options": [
-      {"id": "a", "text": "Option A"},
-      {"id": "b", "text": "Option B"},
-      {"id": "c", "text": "Option C"},
-      {"id": "d", "text": "Option D"}
-    ],
-    "correct_answer": "a",
-    "explanation": "Why A is correct...",
-    "concept_tested": "${concepts[0] || topic}",
-    "context": "Session excerpt"
-  }
-]
-
-Make questions specific to what was actually taught.`
-        }]
-      })
-    });
-
-    const data = await response.json();
-    const content = data.content[0].text;
-    
-    const jsonMatch = content.match(/\[[\s\S]*\]/);
-    if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
+  
+  async function generateSessionSummary(
+    messages: Array<{role: string, content: string}>,
+    topic: string
+  ): Promise<string> {
+    const conversationText = messages
+      .map(m => `${m.role}: ${m.content}`)
+      .join('\n')
+      .substring(0, 2000);
+  
+    try {
+      const prompt = `Create a concise 3-point summary of this learning session about "${topic}". 
+  Each point should be one clear sentence that captures a key learning.
+  
+  Session transcript:
+  ${conversationText}
+  
+  Format your response as:
+  - First key learning point
+  - Second key learning point
+  - Third key learning point
+  
+  Keep each point to one sentence. Focus on what the student learned, not what was discussed.`;
+  
+      const summary = await callGemini(prompt, 300, 0.7);
+      
+      console.log('✅ Generated summary:', summary.substring(0, 100) + '...');
+      return summary;
+    } catch (error) {
+      console.error('❌ Error generating summary:', error);
+      return `Session about ${topic} completed successfully.`;
     }
-    
-    return [];
-  } catch (error) {
-    console.error('Error generating questions:', error);
-    return [];
   }
-}
+  
+  async function generateQuestionsFromConcepts(
+    concepts: string[],
+    sessionMessages: Array<{role: string, content: string}>,
+    topic: string,
+    subject: string
+  ): Promise<any[]> {
+    const conversationText = sessionMessages
+      .map(m => m.content)
+      .join('\n')
+      .substring(0, 3000);
+  
+    try {
+      const prompt = `Create 5 multiple-choice quiz questions based on this "${topic}" learning session in ${subject}.
+  
+  Key concepts covered: ${concepts.join(', ')}
+  
+  Session content:
+  ${conversationText}
+  
+  CRITICAL: Return ONLY a valid JSON array with NO additional text before or after. Do not include markdown code blocks or any explanation.
+  
+  Required JSON format (respond with ONLY this structure):
+  [
+    {
+      "question_text": "What is the purpose of the break statement in Python loops?",
+      "question_type": "multiple_choice",
+      "options": [
+        {"id": "a", "text": "To pause the loop temporarily"},
+        {"id": "b", "text": "To exit the loop immediately"},
+        {"id": "c", "text": "To skip the current iteration"},
+        {"id": "d", "text": "To restart the loop"}
+      ],
+      "correct_answer": "b",
+      "explanation": "The break statement exits the loop immediately when executed.",
+      "concept_tested": "break statements",
+      "context": "We discussed how break statements control loop execution"
+    }
+  ]
+  
+  Requirements:
+  1. Create exactly 5 questions
+  2. Each question must have 4 options (a, b, c, d)
+  3. Questions must be specific to what was taught in this session
+  4. Include a clear explanation for each correct answer
+  5. Return pure JSON only, no markdown or extra text`;
+  
+      const result = await callGemini(prompt, 2500, 0.7);
+      
+      console.log('Gemini questions response (first 200 chars):', result.substring(0, 200));
+      
+      // Clean up response - remove markdown code blocks if present
+      let cleanedResult = result.trim();
+      cleanedResult = cleanedResult.replace(/```json\n?/g, '');
+      cleanedResult = cleanedResult.replace(/```\n?/g, '');
+      cleanedResult = cleanedResult.trim();
+      
+      // Extract JSON array
+      const jsonMatch = cleanedResult.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        const questions = JSON.parse(jsonMatch[0]);
+        console.log('✅ Generated', questions.length, 'questions');
+        return questions;
+      }
+      
+      console.warn('⚠️ Could not parse questions JSON');
+      return [];
+    } catch (error) {
+      console.error('❌ Error generating questions:', error);
+      return [];
+    }
+  }
 
 async function updateUserProgress(
   userId: string,
