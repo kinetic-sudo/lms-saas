@@ -1,3 +1,4 @@
+// components/SubscriptionHandler.tsx
 'use client'
 
 import { useEffect } from 'react';
@@ -20,29 +21,28 @@ export default function SubscriptionHandler() {
   useEffect(() => {
     const handleSubscribeClick = async (event: MouseEvent) => {
       const target = event.target as HTMLElement;
-      
-      // Find the button (handling click on inner elements like spans)
       const button = target.closest('.razorpay-btn') as HTMLButtonElement;
+      
       if (!button) return;
 
       const planKey = button.getAttribute('data-plan');
+      const billingCycle = button.getAttribute('data-billing') as 'monthly' | 'annual' || 'monthly';
+      
       if (!planKey || planKey === 'basic') return;
 
       event.preventDefault();
       event.stopPropagation();
 
-      // UI Feedback
       const originalText = button.innerText;
       button.innerText = "Processing...";
       button.disabled = true;
 
       try {
-        await handleRazorpayPayment(planKey);
+        await handleRazorpayPayment(planKey, billingCycle);
       } catch (error) {
         console.error('Payment error:', error);
         toast.error('Failed to initiate payment.');
       } finally {
-        // Reset button state
         button.innerText = originalText;
         button.disabled = false;
       }
@@ -50,23 +50,25 @@ export default function SubscriptionHandler() {
 
     document.addEventListener('click', handleSubscribeClick, true);
     return () => document.removeEventListener('click', handleSubscribeClick, true);
-  }, [user]);
+  }, [user, router]);
 
-  const handleRazorpayPayment = async (planKey: string) => {
-    // 1. Create Order via Server Action
-    const order = await createRazorpayOrderForClerkPlan(planKey);
+  const handleRazorpayPayment = async (
+    planKey: string, 
+    billingCycle: 'monthly' | 'annual'
+  ) => {
+    // Create order with billing cycle
+    const order = await createRazorpayOrderForClerkPlan(planKey, billingCycle);
 
     if (!order.success) {
       throw new Error(order.error || 'Failed to create order');
     }
 
-    // 2. Open Razorpay Gateway
     const options = {
       key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
       amount: order.amount,
       currency: order.currency,
       name: 'SkillForge',
-      description: `Subscribe to ${order.planName}`,
+      description: `${order.planName} - ${billingCycle === 'annual' ? 'Annual' : 'Monthly'}`,
       order_id: order.orderId,
       prefill: {
         name: user?.fullName || '',
@@ -75,23 +77,34 @@ export default function SubscriptionHandler() {
       theme: { color: '#111111' },
       handler: async function (response: any) {
         try {
-          // 3. Verify & Activate via Server Action
-          const result = await activateClerkSubscription(planKey, {
-            paymentId: response.razorpay_payment_id,
-            orderId: response.razorpay_order_id,
-            signature: response.razorpay_signature
-          });
+          toast.loading('Verifying payment...');
+
+          const result = await activateClerkSubscription(
+            planKey, 
+            billingCycle,
+            {
+              paymentId: response.razorpay_payment_id,
+              orderId: response.razorpay_order_id,
+              signature: response.razorpay_signature
+            }
+          );
+
+          toast.dismiss();
 
           if (result.success) {
-            toast.success("Subscription Activated!");
-            // REFRESH DATA to show the 'Tick Mark' immediately
-            router.refresh(); 
-            // Optional: Redirect to profile
-            // router.push('/my-journey');
+            toast.success('🎉 Subscription Activated!', {
+              description: `You're now on the ${order.planName} ${billingCycle} plan`,
+              duration: 5000,
+            });
+            
+            setTimeout(() => {
+              router.refresh();
+            }, 1000);
           } else {
             toast.error('Payment verification failed.');
           }
         } catch (error) {
+          toast.dismiss();
           console.error('Verification error:', error);
           toast.error('Activation failed. Please contact support.');
         }
