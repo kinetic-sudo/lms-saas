@@ -263,7 +263,8 @@ export const hasConversationHistoryPermission = async () => {
 // Save or update conversation history
 export const saveConversationHistory = async (
     companionId: string, 
-    messages: ConversationMessage[]
+    messages: ConversationMessage[],
+    language?: 'en' | 'hi'
 ) => {
     const { userId } = await auth();
     
@@ -283,6 +284,13 @@ export const saveConversationHistory = async (
         .eq('user_id', userId)
         .eq('companion_id', companionId)
         .maybeSingle();
+
+    const historyData = {
+        messages: messages,
+        last_message_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        metadata: {language }
+    }
     
     if (existingConversation) {
         const { data, error } = await supabase
@@ -304,6 +312,7 @@ export const saveConversationHistory = async (
             .insert({
                 user_id: userId,
                 companion_id: companionId,
+                ...historyData,
                 messages: messages,
                 last_message_at: new Date().toISOString()
             })

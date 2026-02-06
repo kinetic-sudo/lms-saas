@@ -50,7 +50,35 @@ export const subjectsColors = {
 export const voices = {
   male: { casual: "2BJW5coyhAzSr8STdHbE", formal: "c6SfcYrb2t09NHXiT80T" },
   female: { casual: "ZIlrSGI4jZqobxRKprJz", formal: "sarah" },
+  male_hindi: { casual: "hi-IN-MadhurNeural", formal: "hi-IN-MadhurNeural" },
+  female_hindi: { casual: "hi-IN-SwaraNeural", formal: "hi-IN-SwaraNeural" },
 };
+
+// Language options
+export const SUPPORTED_LANGUAGES = {
+  en: {
+    code: 'en',
+    name: 'English',
+    flag: '🇬🇧',
+    transcriber: {
+      provider: "deepgram",
+      model: "nova-2",
+      language: "en",
+    }
+  },
+  hi: {
+    code: 'hi',
+    name: 'Hindi',
+    flag: '🇮🇳',
+    transcriber: {
+      provider: "deepgram",
+      model: "nova-2", 
+      language: "hi", // Deepgram supports Hindi
+    }
+  }
+} as const;
+
+export type SupportedLanguage = keyof typeof SUPPORTED_LANGUAGES;
 
 export const recentSessions = [
   {

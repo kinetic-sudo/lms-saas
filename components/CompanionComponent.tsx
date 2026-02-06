@@ -10,6 +10,8 @@ import Lottie, { LottieRefCurrentProps } from 'lottie-react'
 import soundwaves from '../constants/soundwaves.json'
 import { addToSessionHistory, saveConversationHistory, hasConversationHistoryPermission } from '@/lib/action/companion.action';
 import { Mic, MicOff, Play, Square, MessageCircle } from 'lucide-react';
+import { SupportedLanguage, SUPPORTED_LANGUAGES } from '@/constants';
+import { Globe } from 'lucide-react';
 
 enum CallStatus {
     INACTIVE = 'INACTIVE',
@@ -57,6 +59,10 @@ const CompanionComponent = ({
     const [savedConversation, setSavedConversation] = useState<any>(initialConversationHistory);
     const [showResumePrompt, setShowResumePrompt] = useState(false);
     const [isResuming, setIsResuming] = useState(false);
+    const [selectedLanguage, setSelectedLanguage] = useState<SupportedLanguage>('en');
+    const [showLanguageMenu, setShowLanguageMenu] = useState(false);
+
+
 
     const lottieRef = useRef<LottieRefCurrentProps>(null);
 
@@ -123,7 +129,7 @@ const CompanionComponent = ({
             if (hasHistoryPermission && messages.length > 0) {
                 try {
                     const messagesToSave = [...messages].reverse();
-                    await saveConversationHistory(companionId, messagesToSave);
+                    await saveConversationHistory(companionId, messagesToSave, selectedLanguage);
                     // console.log('Final conversation saved:', messagesToSave.length, 'messages');
                 } catch (error) {
                     console.error('Error saving final conversation:', error);
@@ -178,7 +184,7 @@ const CompanionComponent = ({
         // console.log('Starting call with history:', conversationHistory?.length || 0, 'messages');
         
         // Pass the conversation history directly to configureAssistant
-        const assistant = configureAssistant(voice, style, conversationHistory);
+        const assistant = configureAssistant(voice, style, selectedLanguage, conversationHistory);
         
         const assistantOverrides = {
             variableValues: { subject, topic, style },
@@ -216,7 +222,7 @@ const CompanionComponent = ({
     }
 
     const handleDisconnect = async () => {
-        setCallStatus(CallStatus.FINISHED)
+        setCallStatus(CallStatus.FINISHED)        
         vapi.stop()
     }
 
@@ -430,6 +436,50 @@ const CompanionComponent = ({
                     </div>
                 </div>
 
+                {/* Language Selection */}
+                <div className={cn(cardClass, "py-6")}>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-3">
+            <div className="size-12 rounded-full bg-blue-50 flex items-center justify-center">
+              <Globe size={20} className="text-blue-600" />
+            </div>
+            <div>
+              <p className="font-bold text-slate-900">Voice Language</p>
+              <p className="text-xs font-medium text-slate-400">
+                AI speaks in {SUPPORTED_LANGUAGES[selectedLanguage].name}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 mt-3">
+          {(Object.keys(SUPPORTED_LANGUAGES) as SupportedLanguage[]).map((lang) => (
+            <button
+              key={lang}
+              onClick={() => setSelectedLanguage(lang)}
+              disabled={callStatus === CallStatus.ACTIVE}
+              className={cn(
+                "flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all",
+                selectedLanguage === lang
+                  ? "bg-blue-600 text-white shadow-md"
+                  : "bg-slate-50 text-slate-600 hover:bg-slate-100",
+                callStatus === CallStatus.ACTIVE && "opacity-50 cursor-not-allowed"
+              )}
+            >
+              <span className="text-lg">{SUPPORTED_LANGUAGES[lang].flag}</span>
+              <span>{SUPPORTED_LANGUAGES[lang].name}</span>
+            </button>
+          ))}
+        </div>
+
+        {callStatus === CallStatus.ACTIVE && (
+          <p className="text-xs text-slate-400 mt-2 text-center">
+            Language locked during active session
+          </p>
+        )}
+      </div>
+
+
                 {/* Mic Control */}
                 <div className={cn(cardClass, "flex items-center justify-between py-6")}>
                     <div className="flex items-center gap-4">
@@ -448,24 +498,24 @@ const CompanionComponent = ({
 
                 {/* Main Action Button */}
                 <div className="mt-auto">
-                    <button 
-                        className={cn(
-                            'w-full rounded-full py-6 text-white font-bold text-xl flex items-center justify-center gap-3 transition-all hover:scale-[1.02] active:scale-[0.98] shadow-xl',
-                            callStatus === CallStatus.ACTIVE ? 'bg-red-500 shadow-red-200' : 'bg-[#111111] shadow-slate-200',
-                            callStatus === CallStatus.CONNECTING && 'opacity-80 cursor-wait'
-                        )}
-                        onClick={callStatus === CallStatus.ACTIVE ? handleDisconnect : () => handleCall()}
-                        disabled={callStatus === CallStatus.CONNECTING}
-                    >
-                        {callStatus === CallStatus.ACTIVE ? (
-                            <><Square fill="currentColor" size={20} /> End Session</>
-                        ) : callStatus === CallStatus.CONNECTING ? (
-                            isResuming ? "Resuming..." : "Connecting..."
-                        ) : (
-                            <>Start Session <Play fill="currentColor" size={20} /></>
-                        )}
-                    </button>
-                </div>
+        <button 
+          className={cn(
+            'w-full rounded-full py-6 text-white font-bold text-xl flex items-center justify-center gap-3 transition-all hover:scale-[1.02] active:scale-[0.98] shadow-xl',
+            callStatus === CallStatus.ACTIVE ? 'bg-red-500 shadow-red-200' : 'bg-[#111111] shadow-slate-200',
+            callStatus === CallStatus.CONNECTING && 'opacity-80 cursor-wait'
+          )}
+          onClick={callStatus === CallStatus.ACTIVE ? handleDisconnect : () => handleCall()}
+          disabled={callStatus === CallStatus.CONNECTING}
+        >
+          {callStatus === CallStatus.ACTIVE ? (
+            <><Square fill="currentColor" size={20} /> End Session</>
+          ) : callStatus === CallStatus.CONNECTING ? (
+            isResuming ? "Resuming..." : "Connecting..."
+          ) : (
+            <>Start Session <Play fill="currentColor" size={20} /></>
+          )}
+        </button>
+      </div>
             </div>            
         </section>
     )

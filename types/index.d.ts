@@ -89,6 +89,7 @@ interface SavedMessage {
   id: string;
   role: "user" | "system" | "assistant";
   content: string;
+  language: 'en' | 'hi';
 }
 
 interface CompanionComponentProps {
@@ -100,6 +101,8 @@ interface CompanionComponentProps {
   userImage: string;
   voice: string;
   style: string;
+  initialConversationHistory?: any;
+  defaultLanguage?: 'en' | 'hi'; // Optional default
 }
 
 interface QuizSession {

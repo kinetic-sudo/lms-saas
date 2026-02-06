@@ -2,6 +2,7 @@ import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { subjectsColors, voices } from "@/constants";
 import { CreateAssistantDTO } from "@vapi-ai/web/dist/api";
+import { SUPPORTED_LANGUAGES, SupportedLanguage } from "@/constants";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -14,126 +15,153 @@ export const getSubjectColor = (subject: string) => {
 export const configureAssistant = (
   voice: string, 
   style: string,
+  language: SupportedLanguage = 'en',
   conversationHistory?: Array<{role: string, content: string}>
 ) => {
-  const voiceId =
-    voices[voice as keyof typeof voices][
-      style as keyof (typeof voices)[keyof typeof voices]
-    ] || "sarah";
+  const languageConfig = SUPPORTED_LANGUAGES[language];
 
-  // Analyze conversation to get context for first message
-  let contextualFirstMessage = "Hello! Let's start our session on {{topic}}. What would you like to explore?";
-  
-  if (conversationHistory && conversationHistory.length > 0) {
-    // Get last few messages to understand context
-    const lastMessages = conversationHistory.slice(-4);
-    const topics = lastMessages
-      .filter(m => m.role === 'assistant')
-      .map(m => m.content.substring(0, 100))
-      .join(' ');
+  // --- 1. SMART VOICE SELECTION ---
+  let selectedProvider = "eleven_labs";
+  let selectedVoiceId = "";
+
+  if (language === 'hi') {
+    // FORCE AZURE FOR HINDI (Native Vibe)
+    selectedProvider = "azure";
+    // Check if the requested voice string implies male or female
+    const isMale = voice.toLowerCase().includes('male');
     
-    // Create a dynamic first message that forces the AI to continue
-    contextualFirstMessage = `Welcome back! Last time we were discussing {{topic}}. Let me quickly recap where we left off and continue from there.`;
+    // "Madhur" (Male) and "Swara" (Female) are the best native Hindi voices on Azure
+    selectedVoiceId = isMale ? "hi-IN-MadhurNeural" : "hi-IN-SwaraNeural";
+  } else {
+    // KEEP ENGLISH AS ELEVENLABS (Your existing setup)
+    selectedProvider = "eleven_labs"; 
+    
+    // Use your existing mapping logic for English
+    const voiceKey = voice; 
+    selectedVoiceId = voices[voiceKey as keyof typeof voices]?.[
+      style as keyof (typeof voices)[keyof typeof voices]
+    ] || "sarah"; // Fallback
   }
 
-  // Build the base system message with enhanced instructions
+  // --- 2. CONTEXTUAL MESSAGES ---
+// First message - Modern Hinglish vibe
+let contextualFirstMessage = language === 'hi'
+? "नमस्ते! चलिए {{topic}} का session शुरू करते हैं। आप इसके बारे में क्या जानना चाहेंगे?"
+: "Hello! Let's start our session on {{topic}}. What would you like to explore?";
+
+if (conversationHistory && conversationHistory.length > 0) {
+contextualFirstMessage = language === 'hi'
+  ? "Welcome back! चलिए, वहीं से continue करते हैं जहाँ हमने last time छोड़ा था।"
+  : "Welcome back! Let me continue from where we just left off.";
+}
+
+  // System message in selected language (for AI responses)
+  const systemPrompt = language === 'hi' 
+    ? getHindiSystemPrompt(conversationHistory)
+    : getEnglishSystemPrompt(conversationHistory);
+
   const systemMessage = {
     role: "system" as const,
-    content: `You are a highly knowledgeable tutor in a real-time voice session teaching about {{topic}} in the subject of {{subject}}.
-
-CRITICAL INSTRUCTIONS FOR SESSION CONTINUITY:
-${conversationHistory && conversationHistory.length > 0 
-  ? `This is a RESUMED session. The complete conversation history is provided in the messages.
-
-MANDATORY FIRST RESPONSE BEHAVIOR:
-1. Your FIRST response MUST immediately acknowledge what was discussed
-2. Provide a brief 2-3 sentence summary of what you covered last time
-3. State the specific concept/topic you were explaining when the session ended
-4. Then ask a question or continue teaching the NEXT logical concept
-5. DO NOT just say "welcome back" and wait - BE PROACTIVE
-
-EXAMPLE PERFECT FIRST RESPONSE:
-"Welcome back! Last time we covered offset pagination and cursor-based pagination. We were just about to explore bidirectional cursors in detail. So, bidirectional cursors allow navigation in both directions - forward and backward through a dataset. Have you worked with cursors before?"
-
-EXAMPLE BAD FIRST RESPONSE:
-"Welcome back! Let me pick up where we left off." [THEN STOPS] ❌
-
-GENERAL RESUMED SESSION RULES:
-- Review conversation history to understand exactly what was discussed
-- DO NOT re-teach topics already covered
-- Reference previous discussions naturally (e.g., "As we discussed earlier...")
-- Build upon the foundation already established
-- Continue from the NEXT logical teaching point
-`
-  : `This is a NEW session. Start fresh.
-
-FIRST RESPONSE BEHAVIOR:
-1. Friendly greeting
-2. Brief introduction to {{topic}}
-3. Ask about their current knowledge level
-`}
-
-GENERAL TEACHING STYLE:
-- Maintain a {{style}} conversational style
-- Keep responses SHORT (2-4 sentences) - this is VOICE, not text
-- Ask questions to check understanding frequently
-- Break complex topics into digestible chunks
-- NO special characters, emojis, markdown, or formatting
-- Use natural speech patterns
-- Stay focused on {{topic}} within {{subject}}
-`,
+    content: systemPrompt
+      .replace(/{{topic}}/g, '{{topic}}')
+      .replace(/{{subject}}/g, '{{subject}}')
+      .replace(/{{style}}/g, '{{style}}'),
   };
 
-  // Build messages array
   const messages: any[] = [systemMessage];
 
-  // Add conversation history
+  // --- 3. HISTORY MANAGEMENT ---
   if (conversationHistory && conversationHistory.length > 0) {
-    console.log('Adding conversation history to model:', conversationHistory.length, 'messages');
+    const recentHistory = conversationHistory.slice(-20);
+    console.log('💰 Cost-saving: Using last', recentHistory.length, 'of', conversationHistory.length, 'messages');
     
-    conversationHistory.forEach(msg => {
+    recentHistory.forEach(msg => {
       messages.push({
         role: msg.role === 'user' ? 'user' : 'assistant',
         content: msg.content
       });
     });
     
-    // Add a user message to prompt the AI to respond proactively
-    // This forces the AI to continue rather than wait
+    // Continuation prompt
     messages.push({
       role: "user",
-      content: "Please continue from where we left off. What's next?"
+      content: language === 'hi' 
+        ? "कृपया जहां हम छोड़ गए थे वहीं से जारी रखें।"
+        : "Please continue from where we left off."
     });
   }
 
+  // --- 4. CONFIGURATION OBJECT ---
   const vapiAssistant: CreateAssistantDTO = {
     name: "Companion",
     firstMessage: contextualFirstMessage,
-    transcriber: {
-      provider: "deepgram",
-      model: "nova-3",
-      language: "en",
-    },
+    transcriber: languageConfig.transcriber,
     voice: {
-      provider: "11labs",
-      voiceId: voiceId,
-      stability: 0.4,
-      similarityBoost: 0.8,
-      speed: 0.9,
-      style: 0.5,
-      useSpeakerBoost: true,
+      // @ts-ignore - Vapi types sometimes complain about dynamic providers strings
+      provider: selectedProvider, 
+      voiceId: selectedVoiceId,
+      // Only apply 11labs specific settings if using 11labs
+      ...(selectedProvider === "eleven_labs" && {
+        stability: 0.4,
+        similarityBoost: 0.8,
+        style: 0.5,
+        useSpeakerBoost: true,
+      }),
+      // Azure specific settings (optional, defaults are usually fine)
+      ...(selectedProvider === "azure" && {
+        speed: 0.9, 
+      })
     },
     model: {
       provider: "openai",
-      model: "gpt-4o",
+      model: "gpt-4o-mini",
       messages: messages,
       temperature: 0.7,
-      maxTokens: 250, // Increased slightly for better summaries
+      maxTokens: 200,
     },
     clientMessages: [],
     serverMessages: [],
   };
   
-  console.log('Assistant configured with', messages.length, 'messages');
+  console.log(`✅ Assistant configured for ${language} using ${selectedProvider} (${selectedVoiceId})`);
   return vapiAssistant;
 };
+
+// ... keep your getEnglishSystemPrompt and getHindiSystemPrompt helper functions exactly as they are ...
+function getEnglishSystemPrompt(conversationHistory?: any) {
+  // ... (your existing code)
+  return `You are a highly knowledgeable tutor teaching about {{topic}} in {{subject}}.
+
+${conversationHistory && conversationHistory.length > 0 
+  ? `RESUMED SESSION: Review the conversation history and continue from the last topic discussed.
+- Provide a brief recap (1-2 sentences)
+- Continue teaching the NEXT logical concept
+- Reference previous discussions naturally`
+  : `NEW SESSION: Introduce {{topic}} and assess knowledge level.`}
+
+TEACHING STYLE:
+- {{style}} conversational tone
+- SHORT responses (2-3 sentences for voice)
+- Ask questions frequently
+- NO markdown, emojis, special characters
+- Natural speech patterns in English`;
+}
+
+function getHindiSystemPrompt(conversationHistory?: any) {
+  return `You are an expert tutor teaching {{topic}} in {{subject}}.
+  
+  LANGUAGE & STYLE:
+  - Speak in **Hinglish** (a mix of Hindi and English).
+  - Use Hindi for the sentence structure, but use English for technical terms (e.g., use "Variable", "Loop", "Force", "Interest Rate" instead of their pure Hindi translations).
+  - Tone should be like a friendly "Bhai" or "Dost" who is helping them learn.
+  - Keep responses SHORT (2-3 sentences).
+  
+  EXAMPLE STYLE:
+  "Bilkul! Toh loops ka concept clear hai? Basically, loops humein code repeat karne mein help karte hain bina bar-bar likhe. Kya aap ek example dekhna chahenge?"
+
+  ${conversationHistory && conversationHistory.length > 0
+    ? `Continue from the last point discussed in the history.`
+    : `Introduce the topic naturally in Hinglish.`}
+    
+  IMPORTANT: Do not use difficult Hindi words like 'चर' (Variable) or 'पुनरावृत्ति' (Iteration). Stick to English terms used in common Indian conversation.`;
+}
