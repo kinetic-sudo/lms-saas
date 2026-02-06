@@ -111,53 +111,58 @@ export async function activateClerkSubscription(
       throw new Error('User not authenticated');
     }
 
-    // Verify payment signature
-    const isValid = await verifyRazorpayPayment(
-      razorpayData.orderId,
-      razorpayData.paymentId,
-      razorpayData.signature
-    );
+    // Verify signature (skip for webhooks)
+    if (razorpayData.signature) {
+      const isValid = await verifyRazorpayPayment(
+        razorpayData.orderId,
+        razorpayData.paymentId,
+        razorpayData.signature
+      );
 
-    if (!isValid) {
-      throw new Error('Invalid payment signature');
+      if (!isValid) {
+        throw new Error('Invalid payment signature');
+      }
     }
 
-    let paymentMethodLabel = 'Online Payment';
-    let cardLast4 = '••••';
-
-    try {
-        const payment = await razorpay.payments.fetch(razorpayData.paymentId);
-        
-        if (payment.method === 'card') {
-            // For cards, Razorpay returns specific card info
-            const cardInfo = payment.card; // Access the card object
-            // Note: Typescript might complain if types aren't perfect, cast as any if needed
-            const network = (cardInfo as any)?.network || 'Card';
-            const last4 = (cardInfo as any)?.last4 || '••••';
-            
-            paymentMethodLabel = `${network} Card`; // e.g. "Visa Card"
-            cardLast4 = last4;
-        } else if (payment.method === 'upi') {
-            paymentMethodLabel = `UPI (${payment.vpa})`;
-        } else if (payment.method === 'netbanking') {
-            paymentMethodLabel = `Netbanking (${payment.bank})`;
-        } else {
-            paymentMethodLabel = payment.method; // e.g. 'wallet'
-        }
-    } catch (err) {
-        console.error("Failed to fetch Razorpay payment details", err);
-        // Continue activation even if detail fetch fails
-    }
-
-    // Get the plan details
     const clerkPlan = await getClerkPlanByKey(clerkPlanKey);
     if (!clerkPlan) {
       throw new Error('Plan not found');
     }
 
+    let paymentMethodLabel = 'Online Payment';
+    let cardLast4 = '••••';
+    let paymentAmount = clerkPlan.monthlyPriceINR;
+
+    // Fetch payment details from Razorpay
+    try {
+      const payment = await razorpay.payments.fetch(razorpayData.paymentId);
+      paymentAmount = payment.amount;
+      
+      if (payment.method === 'card') {
+        const cardInfo = payment.card;
+        const network = (cardInfo as any)?.network || 'Card';
+        const last4 = (cardInfo as any)?.last4 || '••••';
+        paymentMethodLabel = `${network} Card`;
+        cardLast4 = last4;
+      } else if (payment.method === 'upi') {
+        paymentMethodLabel = `UPI (${payment.vpa})`;
+      } else if (payment.method === 'netbanking') {
+        paymentMethodLabel = `Netbanking (${payment.bank})`;
+      } else if (payment.method === 'wallet') {
+        paymentMethodLabel = `Wallet (${payment.wallet})`;
+      } else {
+        paymentMethodLabel = payment.method;
+      }
+    } catch (err) {
+      console.error("Failed to fetch payment details", err);
+    }
+
+    const subscriptionStartDate = new Date();
+    const subscriptionEndDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    
     const client = await clerkClient();
 
-    // Update user's public metadata
+    // Update Clerk metadata
     await client.users.updateUser(userId, {
       publicMetadata: {
         plan: clerkPlanKey,
@@ -165,17 +170,17 @@ export async function activateClerkSubscription(
         subscriptionStatus: 'active',
         razorpayPaymentId: razorpayData.paymentId,
         razorpayOrderId: razorpayData.orderId,
-        subscriptionStartDate: new Date().toISOString(),
-        subscriptionEndDate: new Date(
-          Date.now() + 30 * 24 * 60 * 60 * 1000 // 30 days
-        ).toISOString(),
+        subscriptionStartDate: subscriptionStartDate.toISOString(),
+        subscriptionEndDate: subscriptionEndDate.toISOString(),
         paymentMethod: paymentMethodLabel,
-        cardLast4: cardLast4
+        cardLast4: cardLast4,
+        lastPaymentAmount: paymentAmount,
       },
     });
 
-    // Store in Supabase
     const supabase = CreateSupabaseServiceClient();
+    
+    // Update/Create subscription record
     await supabase.from('subscriptions').upsert({
       user_id: userId,
       plan_key: clerkPlanKey,
@@ -184,20 +189,111 @@ export async function activateClerkSubscription(
       status: 'active',
       razorpay_payment_id: razorpayData.paymentId,
       razorpay_order_id: razorpayData.orderId,
-      activated_at: new Date().toISOString(),
-      expires_at: new Date(
-        Date.now() + 30 * 24 * 60 * 60 * 1000
-      ).toISOString(),
-    }, {
-      onConflict: 'user_id',
+      payment_method: paymentMethodLabel,
+      card_last4: cardLast4,
+      amount_paid: paymentAmount,
+      currency: 'INR',
+      activated_at: subscriptionStartDate.toISOString(),
+      expires_at: subscriptionEndDate.toISOString(),
+      next_billing_date: subscriptionEndDate.toISOString(),
+      auto_renew: false, // Manual renewal for now
+      updated_at: new Date().toISOString(),
+    }, { 
+      onConflict: 'user_id' 
     });
 
-    console.log('Subscription activated successfully for user:', userId);
+    // Log successful payment
+    await supabase.from('payment_logs').insert({
+      user_id: userId,
+      payment_id: razorpayData.paymentId,
+      order_id: razorpayData.orderId,
+      status: 'success',
+      amount: paymentAmount,
+      currency: 'INR',
+      plan_key: clerkPlanKey,
+      plan_name: clerkPlan.name,
+      payment_method: paymentMethodLabel,
+      card_last4: cardLast4,
+      metadata: {
+        activated_via: razorpayData.signature ? 'frontend' : 'webhook',
+      }
+    });
+
+    console.log('✅ Subscription activated successfully for user:', userId);
+    console.log('📊 Payment logged:', razorpayData.paymentId);
 
     return { success: true };
-  } catch (error) {
-    console.error('Error activating subscription:', error);
+  } catch (error: any) {
+    console.error('❌ Error activating subscription:', error);
+    
+    // Log failed activation
+    try {
+      const supabase = CreateSupabaseServiceClient();
+      const { userId } = await auth();
+      
+      if (userId) {
+        await supabase.from('payment_logs').insert({
+          user_id: userId,
+          payment_id: razorpayData.paymentId,
+          order_id: razorpayData.orderId,
+          status: 'failed',
+          amount: 0,
+          error_description: error.message,
+          metadata: { error_stack: error.stack }
+        });
+      }
+    } catch (logError) {
+      console.error('Failed to log error:', logError);
+    }
+    
     throw error;
+  }
+}
+
+// lib/action/subscription.action.ts - Add new function
+export async function checkAndUpdateExpiredSubscriptions() {
+  try {
+    const supabase = CreateSupabaseServiceClient();
+    
+    // Find expired subscriptions
+    const { data: expiredSubs, error } = await supabase
+      .from('subscriptions')
+      .select('user_id, plan_key')
+      .eq('status', 'active')
+      .lt('expires_at', new Date().toISOString());
+
+    if (error) throw error;
+
+    if (expiredSubs && expiredSubs.length > 0) {
+      console.log('Found', expiredSubs.length, 'expired subscriptions');
+
+      for (const sub of expiredSubs) {
+        // Update subscription status
+        await supabase
+          .from('subscriptions')
+          .update({ 
+            status: 'expired',
+            updated_at: new Date().toISOString() 
+          })
+          .eq('user_id', sub.user_id);
+
+        // Update Clerk metadata
+        const client = await clerkClient();
+        await client.users.updateUser(sub.user_id, {
+          publicMetadata: {
+            plan: 'basic',
+            subscriptionStatus: 'expired',
+          },
+        });
+
+        console.log('Expired subscription for user:', sub.user_id);
+      }
+    }
+
+    return { success: true, expiredCount: expiredSubs?.length || 0 };
+  } catch (error) {
+    console.error('Error checking expired subscriptions:', error);
+    return { success: false, error };
   }
 }
 
