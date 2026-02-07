@@ -1,64 +1,94 @@
+// app/quiz/[quizId]/page.tsx
 'use client'
-import React, { useEffect, useState } from 'react'
-import InlineQuizComponent from '@/components/InlineQuizzComponent'
-// import { generateQuizFromSession } from '@/lib/action/quiz.action' // UNCOMMENT WHEN REAL
 
-const QuizPage = () => {
+import React, { useEffect, useState } from 'react'
+import { useRouter, useParams } from 'next/navigation'
+import { useUser } from '@clerk/nextjs'
+import InlineQuizComponent from '@/components/InlineQuizzComponent'
+import { getQuizData, submitQuizAnswers } from '@/lib/action/quiz.action'
+import { Loader2 } from 'lucide-react'
+
+export default function QuizPage() {
+  const router = useRouter();
+  const params = useParams();
+  const { user } = useUser();
+  const quizId = params.quizId as string;
+
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [quizData, setQuizData] = useState<any>(null);
 
-  // MOCK DATA GENERATION (Simulating your backend response)
   useEffect(() => {
     const loadQuiz = async () => {
-      // In real app: const res = await generateQuizFromSession(...args);
-      
-      // Simulating delay
-      setTimeout(() => {
-        setQuizData({
-          summary: [
-            "Understood the core difference between for and while loops in Python syntax.",
-            "Explored the range() function and how to use it for definite iteration over sequences.",
-            "Practiced avoiding infinite loops by implementing proper conditional updates."
-          ],
-          questions: [
-            {
-              question_text: "Which keyword is used to stop a loop prematurely?",
-              question_order: 1,
-              options: [
-                { id: "a", text: "stop" },
-                { id: "b", text: "break" },
-                { id: "c", text: "exit" }
-              ]
-            },
-            {
-              question_text: "What does range(5) generate?",
-              question_order: 2,
-              options: [
-                { id: "a", text: "0, 1, 2, 3, 4" },
-                { id: "b", text: "1, 2, 3, 4, 5" },
-                { id: "c", text: "1, 2, 3, 4" }
-              ]
-            }
-          ]
-        });
-        setLoading(false);
-      }, 1500);
-    };
-    loadQuiz();
-  }, []);
+      try {
+        setLoading(true);
+        console.log('Loading quiz:', quizId);
+        
+        const result = await getQuizData(quizId);
 
-  const handleQuizCompletion = async (answers: any) => {
-    console.log("Submitting answers:", answers);
-    // Add your submit logic here (e.g., save score to Supabase)
-    // router.push('/progress-report');
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to load quiz');
+        }
+
+        console.log('Quiz loaded:', result.data);
+        setQuizData(result.data);
+      } catch (err: any) {
+        console.error('Error loading quiz:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (quizId) {
+      loadQuiz();
+    }
+  }, [quizId]);
+
+  const handleQuizCompletion = async (answers: Record<number, string>) => {
+    try {
+      console.log('Submitting answers:', answers);
+      
+      const result = await submitQuizAnswers(quizId, answers);
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to submit quiz');
+      }
+
+      console.log('Quiz submitted:', result);
+      
+      // Redirect to results page
+      router.push(`/quiz/${quizId}/results?score=${result.score}&total=${result.total}&percentage=${result.percentage}`);
+    } catch (err: any) {
+      console.error('Error submitting quiz:', err);
+      alert('Failed to submit quiz. Please try again.');
+    }
   };
 
   if (loading) {
     return (
       <div className="min-h-screen bg-[#F9FAFB] flex items-center justify-center">
-        <div className="animate-pulse flex flex-col items-center">
-          <div className="h-12 w-12 bg-slate-200 rounded-full mb-4"></div>
-          <div className="h-4 w-48 bg-slate-200 rounded"></div>
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-12 w-12 text-purple-600 animate-spin" />
+          <p className="text-slate-600 font-medium">Loading your quiz...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !quizData) {
+    return (
+      <div className="min-h-screen bg-[#F9FAFB] flex items-center justify-center px-4">
+        <div className="bg-white rounded-2xl p-8 max-w-md text-center border border-red-100">
+          <div className="text-red-500 text-5xl mb-4">⚠️</div>
+          <h2 className="text-xl font-bold text-slate-900 mb-2">Quiz Not Found</h2>
+          <p className="text-slate-600 mb-6">{error || 'This quiz does not exist or has expired.'}</p>
+          <button
+            onClick={() => router.push('/my-journey')}
+            className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-slate-800"
+          >
+            Go to My Journey
+          </button>
         </div>
       </div>
     );
@@ -69,11 +99,9 @@ const QuizPage = () => {
       <InlineQuizComponent 
         summary={quizData.summary}
         questions={quizData.questions}
+        userName={user?.firstName || 'Student'}
         onComplete={handleQuizCompletion}
       />
     </div>
-  )
+  );
 }
-
-
-export default QuizPage;
