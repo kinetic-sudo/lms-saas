@@ -13,6 +13,8 @@ import { Mic, MicOff, Play, Square, MessageCircle } from 'lucide-react';
 import { SupportedLanguage, SUPPORTED_LANGUAGES } from '@/constants';
 import { Globe } from 'lucide-react';
 import { generateQuizFromSession } from '@/lib/action/quiz.action';
+import { useRouter } from 'next/navigation';
+import { BookOpen } from 'lucide-react';
 
 enum CallStatus {
     INACTIVE = 'INACTIVE',
@@ -65,8 +67,7 @@ const CompanionComponent = ({
     const [showQuizPrompt, setShowQuizPrompt] = useState(false);
     const [quizSessionId, setQuizSessionId] = useState<string | null>(null)
 
-
-
+    const router = useRouter()
 
 
     const lottieRef = useRef<LottieRefCurrentProps>(null);
@@ -332,6 +333,52 @@ const CompanionComponent = ({
                     </div>
                 </div>
             )}
+
+{showQuizPrompt && quizSessionId && (
+        <div className="lg:col-span-3 animate-in slide-in-from-top-5 duration-500">
+          <div className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-[2.5rem] p-6 border-2 border-purple-200 shadow-lg">
+            
+            <div className="flex items-start gap-4">
+              <div className="size-14 rounded-full bg-purple-500 flex items-center justify-center text-white flex-shrink-0">
+                <BookOpen size={26} strokeWidth={2.5} />
+              </div>
+              
+              <div className="flex-1">
+                <h3 className="font-bold text-xl text-slate-900 mb-2">
+                  🎉 Session Complete!
+                </h3>
+                <p className="text-slate-600 text-sm mb-4 leading-relaxed">
+                  Great work! Test your knowledge with a quick 5-question quiz based on what you just learned.
+                </p>
+                
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    onClick={() => router.push(`/quiz/${quizSessionId}`)}
+                    className="bg-purple-600 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-md hover:bg-purple-700 transition-all active:scale-95"
+                  >
+                    Take Quiz Now
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      setShowQuizPrompt(false);
+                      router.push('/my-journey');
+                    }}
+                    className="bg-white text-slate-700 border-2 border-slate-200 px-6 py-3 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all active:scale-95"
+                  >
+                    Maybe Later
+                  </button>
+                </div>
+                
+                <p className="text-xs text-slate-500 mt-3">
+                  💡 Quizzes help reinforce your learning and track progress
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
 
             {/* Upgrade Prompt for Free Users - FIXED CONDITION */}
             {hasHistoryPermission === false && callStatus === CallStatus.INACTIVE && !showResumePrompt && (
