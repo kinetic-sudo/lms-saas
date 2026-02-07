@@ -8,10 +8,11 @@ import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react'
 import Lottie, { LottieRefCurrentProps } from 'lottie-react'
 import soundwaves from '../constants/soundwaves.json'
-import { addToSessionHistory, saveConversationHistory, hasConversationHistoryPermission } from '@/lib/action/companion.action';
+import { addToSessionHistory, saveConversationHistory, hasConversationHistoryPermission, hasQuizPermission } from '@/lib/action/companion.action';
 import { Mic, MicOff, Play, Square, MessageCircle } from 'lucide-react';
 import { SupportedLanguage, SUPPORTED_LANGUAGES } from '@/constants';
 import { Globe } from 'lucide-react';
+import { generateQuizFromSession } from '@/lib/action/quiz.action';
 
 enum CallStatus {
     INACTIVE = 'INACTIVE',
@@ -61,6 +62,10 @@ const CompanionComponent = ({
     const [isResuming, setIsResuming] = useState(false);
     const [selectedLanguage, setSelectedLanguage] = useState<SupportedLanguage>('en');
     const [showLanguageMenu, setShowLanguageMenu] = useState(false);
+    const [showQuizPrompt, setShowQuizPrompt] = useState(false);
+    const [quizSessionId, setQuizSessionId] = useState(false)
+
+
 
 
 
@@ -129,8 +134,32 @@ const CompanionComponent = ({
             if (hasHistoryPermission && messages.length > 0) {
                 try {
                     const messagesToSave = [...messages].reverse();
-                    await saveConversationHistory(companionId, messagesToSave, selectedLanguage);
-                    // console.log('Final conversation saved:', messagesToSave.length, 'messages');
+                    const  savedHistory = await saveConversationHistory(companionId, messagesToSave, selectedLanguage);
+                    // check if user has quiz permision
+                    const canTakeQuiz = await hasQuizPermission();
+
+                    if(canTakeQuiz && savedHistory?.id) {
+                        console.log('🎯 Generating quiz for session...');
+                    }
+                    
+                    // generate quizz from session 
+                    const quizResult = await generateQuizFromSession(
+                        companionId,
+                        savedHistory.id,
+                        messagesToSave,
+                        subject,
+                        topic
+                    )
+
+                    if (quizResult.success) {
+                        console.log('Quiz generated:', quizResult.quizSessionId)
+                    }
+
+                    // show quiz prompt 
+                    setShowQuizPrompt(true);
+                    setQuizSessionId(quizResult.quizSessionId)
+
+                
                 } catch (error) {
                     console.error('Error saving final conversation:', error);
                 }
