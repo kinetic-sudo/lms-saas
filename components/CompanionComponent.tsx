@@ -63,7 +63,7 @@ const CompanionComponent = ({
     const [selectedLanguage, setSelectedLanguage] = useState<SupportedLanguage>('en');
     const [showLanguageMenu, setShowLanguageMenu] = useState(false);
     const [showQuizPrompt, setShowQuizPrompt] = useState(false);
-    const [quizSessionId, setQuizSessionId] = useState(false)
+    const [quizSessionId, setQuizSessionId] = useState<string | null>(null)
 
 
 
