@@ -414,3 +414,20 @@ export const getAllConversationHistories = async () => {
         companions: undefined
     }));
 }
+
+// lib/action/companion.action.ts - Add new function
+export const hasQuizPermission = async () => {
+    const { userId } = await auth();
+    const user = await currentUser();
+    
+    if (!userId || !user) return false;
+ 
+    const planKey = (user.publicMetadata?.plan as string) || 'basic';
+    
+    // Quiz available for intermediate and pro plans
+    if(planKey === 'pro' || planKey === 'intermediate') {
+     return true;
+    }
+    
+    return false;
+ }
