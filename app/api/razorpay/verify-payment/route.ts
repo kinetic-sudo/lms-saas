@@ -16,6 +16,7 @@ export async function POST(req: NextRequest) {
       razorpay_payment_id,
       razorpay_signature,
       planKey,
+      billingCycle = 'monthly',
     } = body;
 
     console.log('Verifying payment:', { razorpay_order_id, razorpay_payment_id, planKey });
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Activate subscription in Clerk
-    await activateClerkSubscription(planKey, {
+    await activateClerkSubscription(planKey, billingCycle, {
       orderId: razorpay_order_id,
       paymentId: razorpay_payment_id,
       signature: razorpay_signature,

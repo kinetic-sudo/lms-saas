@@ -58,6 +58,7 @@ async function handlePaymentSuccess(payment: any) {
     const notes = payment.notes;
     const userId = notes.userId;
     const planKey = notes.planKey;
+    const billingCycle = (notes.billingCycle as 'monthly' | 'annual') || 'monthly';
 
     if (!userId || !planKey) {
       console.error('Missing userId or planKey in payment notes');
@@ -67,7 +68,7 @@ async function handlePaymentSuccess(payment: any) {
     console.log('Processing payment success for user:', userId);
 
     // Activate subscription (this will be idempotent)
-    await activateClerkSubscription(planKey, {
+    await activateClerkSubscription(planKey, billingCycle, {
       paymentId: payment.id,
       orderId: payment.order_id,
       signature: '', // Not needed for webhook
