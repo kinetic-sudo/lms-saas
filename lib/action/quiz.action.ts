@@ -81,12 +81,14 @@ export async function generateQuizFromSession(
         topic,
         subject
       );
+
+      // Don't throw error if we have fallback questions
+if (!questions || questions.length === 0) {
+    console.error('❌ No questions generated, even from fallback');
+    throw new Error('Failed to generate questions');
+  }
   
-      if (!questions || questions.length === 0) {
-        throw new Error('Failed to generate questions');
-      }
-  
-      console.log('✅ Generated', questions.length, 'questions');
+  console.log('✅ Generated', questions.length, 'questions');
   
       // 5. Save questions to database
       const questionsToInsert = questions.map((q, index) => ({
