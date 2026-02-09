@@ -1,3 +1,4 @@
+// lib/utils.ts - FIXED VERSION
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { subjectsColors, voices } from "@/constants";
@@ -20,42 +21,38 @@ export const configureAssistant = (
 ) => {
   const languageConfig = SUPPORTED_LANGUAGES[language];
 
-  // --- 1. SMART VOICE SELECTION ---
-  let selectedProvider = "eleven_labs";
+  // --- VOICE SELECTION FOR BOTH LANGUAGES ---
   let selectedVoiceId = "";
-
+  
   if (language === 'hi') {
-    // FORCE AZURE FOR HINDI (Native Vibe)
-    selectedProvider = "azure";
-    // Check if the requested voice string implies male or female
+    // Use 11Labs multilingual voices for Hindi
+    // These voices can speak Hindi naturally
     const isMale = voice.toLowerCase().includes('male');
     
-    // "Madhur" (Male) and "Swara" (Female) are the best native Hindi voices on Azure
-    selectedVoiceId = isMale ? "hi-IN-MadhurNeural" : "hi-IN-SwaraNeural";
+    // 11Labs voices that support Hindi well:
+    selectedVoiceId = isMale 
+      ? "pNInz6obpgDQGcFmaJgB"  // Adam (supports Hindi)
+      : "EXAVITQu4vr4xnSDxMaL";  // Bella (supports Hindi)
   } else {
-    // KEEP ENGLISH AS ELEVENLABS (Your existing setup)
-    selectedProvider = "eleven_labs"; 
-    
-    // Use your existing mapping logic for English
+    // English voices (your existing setup)
     const voiceKey = voice; 
     selectedVoiceId = voices[voiceKey as keyof typeof voices]?.[
       style as keyof (typeof voices)[keyof typeof voices]
-    ] || "sarah"; // Fallback
+    ] || "sarah";
   }
 
-  // --- 2. CONTEXTUAL MESSAGES ---
-// First message - Modern Hinglish vibe
-let contextualFirstMessage = language === 'hi'
-? "नमस्ते! चलिए {{topic}} का session शुरू करते हैं। आप इसके बारे में क्या जानना चाहेंगे?"
-: "Hello! Let's start our session on {{topic}}. What would you like to explore?";
+  // First message
+  let contextualFirstMessage = language === 'hi'
+    ? "नमस्ते! चलिए {{topic}} का session शुरू करते हैं। आप इसके बारे में क्या जानना चाहेंगे?"
+    : "Hello! Let's start our session on {{topic}}. What would you like to explore?";
 
-if (conversationHistory && conversationHistory.length > 0) {
-contextualFirstMessage = language === 'hi'
-  ? "Welcome back! चलिए, वहीं से continue करते हैं जहाँ हमने last time छोड़ा था।"
-  : "Welcome back! Let me continue from where we just left off.";
-}
+  if (conversationHistory && conversationHistory.length > 0) {
+    contextualFirstMessage = language === 'hi'
+      ? "Welcome back! चलिए, वहीं से continue करते हैं जहाँ हमने last time छोड़ा था।"
+      : "Welcome back! Let me continue from where we just left off.";
+  }
 
-  // System message in selected language (for AI responses)
+  // System prompt
   const systemPrompt = language === 'hi' 
     ? getHindiSystemPrompt(conversationHistory)
     : getEnglishSystemPrompt(conversationHistory);
@@ -70,7 +67,7 @@ contextualFirstMessage = language === 'hi'
 
   const messages: any[] = [systemMessage];
 
-  // --- 3. HISTORY MANAGEMENT ---
+  // Add conversation history
   if (conversationHistory && conversationHistory.length > 0) {
     const recentHistory = conversationHistory.slice(-20);
     console.log('💰 Cost-saving: Using last', recentHistory.length, 'of', conversationHistory.length, 'messages');
@@ -82,7 +79,6 @@ contextualFirstMessage = language === 'hi'
       });
     });
     
-    // Continuation prompt
     messages.push({
       role: "user",
       content: language === 'hi' 
@@ -91,26 +87,19 @@ contextualFirstMessage = language === 'hi'
     });
   }
 
-  // --- 4. CONFIGURATION OBJECT ---
+  // VAPI Configuration
   const vapiAssistant: CreateAssistantDTO = {
     name: "Companion",
     firstMessage: contextualFirstMessage,
     transcriber: languageConfig.transcriber,
     voice: {
-      // @ts-ignore - Vapi types sometimes complain about dynamic providers strings
-      provider: selectedProvider, 
+      provider: "11labs",  // ALWAYS use 11labs (VAPI supports this)
       voiceId: selectedVoiceId,
-      // Only apply 11labs specific settings if using 11labs
-      ...(selectedProvider === "eleven_labs" && {
-        stability: 0.4,
-        similarityBoost: 0.8,
-        style: 0.5,
-        useSpeakerBoost: true,
-      }),
-      // Azure specific settings (optional, defaults are usually fine)
-      ...(selectedProvider === "azure" && {
-        speed: 0.9, 
-      })
+      stability: 0.4,
+      similarityBoost: 0.8,
+      speed: 0.9,
+      style: 0.5,
+      useSpeakerBoost: true,
     },
     model: {
       provider: "openai",
@@ -123,13 +112,12 @@ contextualFirstMessage = language === 'hi'
     serverMessages: [],
   };
   
-  console.log(`✅ Assistant configured for ${language} using ${selectedProvider} (${selectedVoiceId})`);
+  console.log(`✅ Assistant configured for ${language} using eleven_labs (${selectedVoiceId})`);
   return vapiAssistant;
 };
 
-// ... keep your getEnglishSystemPrompt and getHindiSystemPrompt helper functions exactly as they are ...
+// Helper functions
 function getEnglishSystemPrompt(conversationHistory?: any) {
-  // ... (your existing code)
   return `You are a highly knowledgeable tutor teaching about {{topic}} in {{subject}}.
 
 ${conversationHistory && conversationHistory.length > 0 
@@ -148,20 +136,21 @@ TEACHING STYLE:
 }
 
 function getHindiSystemPrompt(conversationHistory?: any) {
-  return `You are an expert tutor teaching {{topic}} in {{subject}}.
-  
-  LANGUAGE & STYLE:
-  - Speak in **Hinglish** (a mix of Hindi and English).
-  - Use Hindi for the sentence structure, but use English for technical terms (e.g., use "Variable", "Loop", "Force", "Interest Rate" instead of their pure Hindi translations).
-  - Tone should be like a friendly "Bhai" or "Dost" who is helping them learn.
-  - Keep responses SHORT (2-3 sentences).
-  
-  EXAMPLE STYLE:
-  "Bilkul! Toh loops ka concept clear hai? Basically, loops humein code repeat karne mein help karte hain bina bar-bar likhe. Kya aap ek example dekhna chahenge?"
+  return `आप {{subject}} में {{topic}} पढ़ाने वाले एक अनुभवी शिक्षक हैं।
 
-  ${conversationHistory && conversationHistory.length > 0
-    ? `Continue from the last point discussed in the history.`
-    : `Introduce the topic naturally in Hinglish.`}
-    
-  IMPORTANT: Do not use difficult Hindi words like 'चर' (Variable) or 'पुनरावृत्ति' (Iteration). Stick to English terms used in common Indian conversation.`;
+LANGUAGE & STYLE:
+- Speak in **Hinglish** (Hindi-English mix)
+- Use Hindi for basic sentences, English for technical terms
+- Example: "Bilkul! Toh loops ka concept clear hai? Basically, loops help karte hain code repeat karne mein."
+- Keep responses SHORT (2-3 sentences)
+- Friendly, conversational tone like talking to a friend
+
+${conversationHistory && conversationHistory.length > 0
+  ? `RESUMED SESSION: Continue from where we left off in the conversation history.`
+  : `NEW SESSION: Introduce {{topic}} naturally in Hinglish.`}
+
+IMPORTANT: 
+- Use English for all technical terms (Variable, Loop, Function, etc.)
+- Do NOT use complex Hindi words
+- Sound natural like how Indians speak in daily life`;
 }

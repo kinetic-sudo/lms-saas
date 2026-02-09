@@ -126,80 +126,103 @@ const CompanionComponent = ({
     }, [isSpeaking])
 
     // --- Vapi Event Handlers ---
-    useEffect(() => {
-        const onCallStart = () => setCallStatus(CallStatus.ACTIVE)
-        const onCallEnd = async () => {
-            setCallStatus(CallStatus.FINISHED);
-            await addToSessionHistory(companionId);
-            
-            if (hasHistoryPermission && messages.length > 0) {
-                try {
-                    const messagesToSave = [...messages].reverse();
-                    const  savedHistory = await saveConversationHistory(companionId, messagesToSave, selectedLanguage);
-                    // check if user has quiz permision
-                    const canTakeQuiz = await hasQuizPermission();
+    // components/CompanionComponent.tsx - Fix the onCallEnd handler
 
-                    if(canTakeQuiz && savedHistory?.id) {
-                        console.log('🎯 Generating quiz for session...');
-                    }
+useEffect(() => {
+    const onCallStart = () => setCallStatus(CallStatus.ACTIVE)
+    
+    const onCallEnd = async () => {
+        setCallStatus(CallStatus.FINISHED);
+        await addToSessionHistory(companionId);
+        
+        if (hasHistoryPermission && messages.length > 0) {
+            try {
+                const messagesToSave = [...messages].reverse();
+                const savedHistory = await saveConversationHistory(
+                    companionId, 
+                    messagesToSave, 
+                    selectedLanguage
+                );
+                
+                console.log('✅ Conversation saved:', savedHistory);
+                
+                // Check if user has quiz permission
+                const canTakeQuiz = await hasQuizPermission();
+                
+                console.log('Quiz permission:', canTakeQuiz);
+                console.log('Saved history ID:', savedHistory?.id);
+                console.log('Messages count:', messagesToSave.length);
+                
+                if (canTakeQuiz && savedHistory?.id && messagesToSave.length >= 4) {
+                    console.log('🎯 Generating quiz for session...');
                     
-                    // generate quizz from session 
+                    // Generate quiz from session
                     const quizResult = await generateQuizFromSession(
                         companionId,
                         savedHistory.id,
                         messagesToSave,
                         subject,
                         topic
-                    )
-
+                    );
+                    
+                    console.log('Quiz result:', quizResult);
+                    
                     if (quizResult.success) {
-                        console.log('Quiz generated:', quizResult.quizSessionId)
+                        console.log('✅ Quiz generated:', quizResult.quizSessionId);
+                        
+                        // Show quiz prompt
+                        setShowQuizPrompt(true);
+                        setQuizSessionId(quizResult.quizSessionId);
+                    } else {
+                        console.error('❌ Quiz generation failed:', quizResult.error);
                     }
-
-                    // show quiz prompt 
-                    setShowQuizPrompt(true);
-                    setQuizSessionId(quizResult.quizSessionId)
-
-                
-                } catch (error) {
-                    console.error('Error saving final conversation:', error);
+                } else {
+                    console.log('⚠️ Quiz not generated:', {
+                        canTakeQuiz,
+                        hasHistoryId: !!savedHistory?.id,
+                        messageCount: messagesToSave.length
+                    });
                 }
-            }
-            
-            setIsResuming(false);
-        }
-        const onMessage = (message: any) => {
-            if (message.type === 'transcript' && message.transcriptType === 'final') {
-                const newMessage: SavedMessage = {
-                    id: `${Date.now()}-${Math.random()}`,
-                    // FIX: Add 'as ...' type assertion here
-                    role: message.role as 'user' | 'assistant', 
-                    content: message.transcript,
-                    timestamp: new Date().toISOString()
-                }
-                setMessages((prev) => [newMessage, ...prev])
+            } catch (error) {
+                console.error('❌ Error in onCallEnd:', error);
             }
         }
-        const onSpeechStart = () => setIsSpeaking(true)
-        const onSpeechEnd = () => setIsSpeaking(false)
-        const onError = (error: any) => console.log("Error", error)
-
-        vapi.on("call-start", onCallStart)
-        vapi.on("call-end", onCallEnd)
-        vapi.on("message", onMessage)
-        vapi.on("error", onError)
-        vapi.on('speech-start', onSpeechStart)
-        vapi.on('speech-end', onSpeechEnd)
-
-        return () => {
-            vapi.off("call-start", onCallStart)
-            vapi.off("call-end", onCallEnd)
-            vapi.off("message", onMessage)
-            vapi.off("error", onError)
-            vapi.off('speech-start', onSpeechStart)
-            vapi.off('speech-end', onSpeechEnd)
+        
+        setIsResuming(false);
+    }
+    
+    const onMessage = (message: any) => {
+        if (message.type === 'transcript' && message.transcriptType === 'final') {
+            const newMessage: SavedMessage = {
+                id: `${Date.now()}-${Math.random()}`,
+                role: message.role as 'user' | 'assistant', 
+                content: message.transcript,
+                timestamp: new Date().toISOString()
+            }
+            setMessages((prev) => [newMessage, ...prev])
         }
-    }, [companionId, hasHistoryPermission, messages])
+    }
+    
+    const onSpeechStart = () => setIsSpeaking(true)
+    const onSpeechEnd = () => setIsSpeaking(false)
+    const onError = (error: any) => console.log("Error", error)
+
+    vapi.on("call-start", onCallStart)
+    vapi.on("call-end", onCallEnd)
+    vapi.on("message", onMessage)
+    vapi.on("error", onError)
+    vapi.on('speech-start', onSpeechStart)
+    vapi.on('speech-end', onSpeechEnd)
+
+    return () => {
+        vapi.off("call-start", onCallStart)
+        vapi.off("call-end", onCallEnd)
+        vapi.off("message", onMessage)
+        vapi.off("error", onError)
+        vapi.off('speech-start', onSpeechStart)
+        vapi.off('speech-end', onSpeechEnd)
+    }
+}, [companionId, hasHistoryPermission, messages, subject, topic, selectedLanguage])
 
     const toggleMicrophone = () => {
         const muted = !isMuted;
@@ -334,50 +357,39 @@ const CompanionComponent = ({
                 </div>
             )}
 
-{showQuizPrompt && quizSessionId && (
-        <div className="lg:col-span-3 animate-in slide-in-from-top-5 duration-500">
-          <div className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-[2.5rem] p-6 border-2 border-purple-200 shadow-lg">
-            
-            <div className="flex items-start gap-4">
-              <div className="size-14 rounded-full bg-purple-500 flex items-center justify-center text-white flex-shrink-0">
-                <BookOpen size={26} strokeWidth={2.5} />
-              </div>
-              
-              <div className="flex-1">
-                <h3 className="font-bold text-xl text-slate-900 mb-2">
-                  🎉 Session Complete!
-                </h3>
-                <p className="text-slate-600 text-sm mb-4 leading-relaxed">
-                  Great work! Test your knowledge with a quick 5-question quiz based on what you just learned.
-                </p>
-                
-                <div className="flex flex-wrap items-center gap-3">
-                  <button
-                    onClick={() => router.push(`/quiz/${quizSessionId}`)}
-                    className="bg-purple-600 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-md hover:bg-purple-700 transition-all active:scale-95"
-                  >
-                    Take Quiz Now
-                  </button>
-                  
-                  <button
-                    onClick={() => {
-                      setShowQuizPrompt(false);
-                      router.push('/my-journey');
-                    }}
-                    className="bg-white text-slate-700 border-2 border-slate-200 px-6 py-3 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all active:scale-95"
-                  >
-                    Maybe Later
-                  </button>
-                </div>
-                
-                <p className="text-xs text-slate-500 mt-3">
-                  💡 Quizzes help reinforce your learning and track progress
-                </p>
-              </div>
-            </div>
-          </div>
+            {/* Free User Quiz Upgrade Prompt - Show after session if no quiz permission */}
+{!hasHistoryPermission && callStatus === CallStatus.FINISHED && !showQuizPrompt && messages.length > 0 && (
+  <div className="lg:col-span-3 animate-in slide-in-from-top-5 duration-500">
+    <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-6 border border-indigo-100">
+      <div className="flex items-start gap-4">
+        <div className="bg-indigo-500 text-white p-3 rounded-xl">
+          <BookOpen size={24} />
         </div>
-      )}
+        <div className="flex-1">
+          <h3 className="font-bold text-lg text-slate-900 mb-2">
+            🎯 Want to Test Your Knowledge?
+          </h3>
+          <p className="text-slate-600 text-sm mb-4">
+            Upgrade to <span className="font-bold text-indigo-600">Intermediate Learner</span> or{' '}
+            <span className="font-bold text-purple-600">Pro Companion</span> to get:
+          </p>
+          <ul className="text-sm text-slate-600 mb-4 space-y-1">
+            <li>✓ Personalized quizzes after each session</li>
+            <li>✓ Save conversation history</li>
+            <li>✓ Track your progress over time</li>
+            <li>✓ Session summaries and recaps</li>
+          </ul>
+          <a 
+            href="/subscription" 
+            className="inline-block bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-indigo-700 transition"
+          >
+            Upgrade Now
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
 
 
             {/* Upgrade Prompt for Free Users - FIXED CONDITION */}

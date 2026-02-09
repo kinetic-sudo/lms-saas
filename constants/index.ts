@@ -55,15 +55,16 @@ export const voices = {
 };
 
 // Language options
+// constants/index.ts - Update Hindi voice IDs
 export const SUPPORTED_LANGUAGES = {
   en: {
     code: 'en',
     name: 'English',
     flag: '🇬🇧',
     transcriber: {
-      provider: "deepgram",
-      model: "nova-2",
-      language: "en",
+      provider: "deepgram" as const,
+      model: "nova-2" as const,
+      language: "en" as const,
     }
   },
   hi: {
@@ -71,12 +72,14 @@ export const SUPPORTED_LANGUAGES = {
     name: 'Hindi',
     flag: '🇮🇳',
     transcriber: {
-      provider: "deepgram",
-      model: "nova-2", 
-      language: "hi", // Deepgram supports Hindi
+      provider: "deepgram" as const,
+      model: "nova-2" as const,
+      language: "hi" as const, // Deepgram supports Hindi
     }
   }
 } as const;
+
+
 
 export type SupportedLanguage = keyof typeof SUPPORTED_LANGUAGES;
 

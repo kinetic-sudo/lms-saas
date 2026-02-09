@@ -8,93 +8,124 @@ import { callGemini } from '../AI/gemini';
 // GENERATE QUIZ FROM SESSION
 // ============================
 
+// lib/action/quiz.action.ts - Add better error handling
+
 export async function generateQuizFromSession(
-  companionId: string,
-  conversationHistoryId: string,
-  sessionMessages: Array<{role: string, content: string}>,
-  subject: string,
-  topic: string
-) {
-  try {
-    const { userId } = await auth();
-    if (!userId) throw new Error('Not authenticated');
-
-    const supabase = CreateSupabaseServiceClient();
-
-    console.log('🎯 Generating quiz from session...');
-
-    // 1. Extract key concepts from session
-    const keyConcepts = await extractKeyConceptsFromSession(sessionMessages);
-    
-    // 2. Generate session summary
-    const sessionSummary = await generateSessionSummary(sessionMessages, topic);
-
-    // 3. Create quiz session
-    const { data: quizSession, error: sessionError } = await supabase
-      .from('quiz_sessions')
-      .insert({
-        user_id: userId,
-        companion_id: companionId,
-        conversation_session_id: conversationHistoryId,
-        subject: subject,
-        topic: topic,
-        difficulty: 'medium',
-        total_questions: 5,
-        session_summary: sessionSummary,
-        key_concepts: keyConcepts,
-        status: 'pending',
-      })
-      .select()
-      .single();
-
-    if (sessionError) throw sessionError;
-
-    console.log('✅ Quiz session created:', quizSession.id);
-
-    // 4. Generate questions using AI
-    const questions = await generateQuestionsFromConcepts(
-      keyConcepts,
-      sessionMessages,
-      topic,
-      subject
-    );
-
-    console.log('✅ Generated', questions.length, 'questions');
-
-    // 5. Save questions to database
-    const questionsToInsert = questions.map((q, index) => ({
-      quiz_session_id: quizSession.id,
-      question_text: q.question_text,
-      question_type: q.question_type,
-      options: q.options,
-      correct_answer: q.correct_answer,
-      explanation: q.explanation,
-      concept_tested: q.concept_tested || keyConcepts[0] || topic,
-      context_from_session: q.context || '',
-      question_order: index + 1,
-    }));
-
-    const { error: questionsError } = await supabase
-      .from('quiz_questions')
-      .insert(questionsToInsert);
-
-    if (questionsError) throw questionsError;
-
-    console.log('✅ Questions saved to database');
-
-    return {
-      success: true,
-      quizSessionId: quizSession.id,
-      totalQuestions: questions.length,
-    };
-
-  } catch (error: any) {
-    console.error('❌ Error generating quiz:', error);
-    return {
-      success: false,
-      error: error.message,
-    };
-  }
+    companionId: string,
+    conversationHistoryId: string,
+    sessionMessages: Array<{role: string, content: string}>,
+    subject: string,
+    topic: string
+  ) {
+    try {
+      const { userId } = await auth();
+      if (!userId) {
+        console.error('No user ID');
+        throw new Error('Not authenticated');
+      }
+  
+      // Validate inputs
+      if (!sessionMessages || sessionMessages.length < 4) {
+        console.error('Not enough messages:', sessionMessages?.length);
+        throw new Error('Need at least 4 messages to generate quiz');
+      }
+  
+      const supabase = CreateSupabaseServiceClient();
+  
+      console.log('🎯 Generating quiz from session...');
+      console.log('User:', userId);
+      console.log('Companion:', companionId);
+      console.log('Messages:', sessionMessages.length);
+  
+      // 1. Extract key concepts from session
+      console.log('Extracting concepts...');
+      const keyConcepts = await extractKeyConceptsFromSession(sessionMessages);
+      console.log('✅ Concepts:', keyConcepts);
+      
+      // 2. Generate session summary
+      console.log('Generating summary...');
+      const sessionSummary = await generateSessionSummary(sessionMessages, topic);
+      console.log('✅ Summary generated');
+  
+      // 3. Create quiz session
+      console.log('Creating quiz session...');
+      const { data: quizSession, error: sessionError } = await supabase
+        .from('quiz_sessions')
+        .insert({
+          user_id: userId,
+          companion_id: companionId,
+          conversation_session_id: conversationHistoryId,
+          subject: subject,
+          topic: topic,
+          difficulty: 'medium',
+          total_questions: 5,
+          session_summary: sessionSummary,
+          key_concepts: keyConcepts,
+          status: 'pending',
+        })
+        .select()
+        .single();
+  
+      if (sessionError) {
+        console.error('Session creation error:', sessionError);
+        throw sessionError;
+      }
+  
+      console.log('✅ Quiz session created:', quizSession.id);
+  
+      // 4. Generate questions using AI
+      console.log('Generating questions...');
+      const questions = await generateQuestionsFromConcepts(
+        keyConcepts,
+        sessionMessages,
+        topic,
+        subject
+      );
+  
+      if (!questions || questions.length === 0) {
+        throw new Error('Failed to generate questions');
+      }
+  
+      console.log('✅ Generated', questions.length, 'questions');
+  
+      // 5. Save questions to database
+      const questionsToInsert = questions.map((q, index) => ({
+        quiz_session_id: quizSession.id,
+        question_text: q.question_text,
+        question_type: q.question_type,
+        options: q.options,
+        correct_answer: q.correct_answer,
+        explanation: q.explanation,
+        concept_tested: q.concept_tested || keyConcepts[0] || topic,
+        context_from_session: q.context || '',
+        question_order: index + 1,
+      }));
+  
+      const { error: questionsError } = await supabase
+        .from('quiz_questions')
+        .insert(questionsToInsert);
+  
+      if (questionsError) {
+        console.error('Questions insert error:', questionsError);
+        throw questionsError;
+      }
+  
+      console.log('✅ Questions saved to database');
+  
+      return {
+        success: true,
+        quizSessionId: quizSession.id,
+        totalQuestions: questions.length,
+      };
+  
+    } catch (error: any) {
+      console.error('❌ Error generating quiz:', error);
+      console.error('Error stack:', error.stack);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
 }
 
 // ============================

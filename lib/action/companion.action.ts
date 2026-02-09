@@ -289,22 +289,23 @@ export const saveConversationHistory = async (
         messages: messages,
         last_message_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        metadata: {language }
-    }
+        metadata: { language: language || 'en' } // Always include metadata
+    };
     
     if (existingConversation) {
         const { data, error } = await supabase
             .from('conversation_history')
-            .update({
-                messages: messages,
-                last_message_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-            })
+            .update(historyData)
             .eq('id', existingConversation.id)
             .select()
             .single();
         
-        if (error) throw new Error(error.message);
+        if (error) {
+            console.error('Update error:', error);
+            throw new Error(error.message);
+        }
+        
+        console.log('✅ Conversation updated:', data.id);
         return data;
     } else {
         const { data, error } = await supabase
@@ -312,14 +313,17 @@ export const saveConversationHistory = async (
             .insert({
                 user_id: userId,
                 companion_id: companionId,
-                ...historyData,
-                messages: messages,
-                last_message_at: new Date().toISOString()
+                ...historyData
             })
             .select()
             .single();
         
-        if (error) throw new Error(error.message);
+        if (error) {
+            console.error('Insert error:', error);
+            throw new Error(error.message);
+        }
+        
+        console.log('✅ Conversation created:', data.id);
         return data;
     }
 }
