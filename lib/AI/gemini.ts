@@ -1,4 +1,4 @@
-// lib/AI/gemini.ts - PRODUCTION READY WITH FREE TIER
+// lib/AI/gemini.ts 
 'use server'
 
 interface GeminiResponse {
@@ -21,9 +21,8 @@ export async function callGemini(
   temperature: number = 0.7
 ): Promise<string> {
   try {
-    console.log('📤 Calling Gemini API...');
+    console.log('📤 Calling Gemini 2.5 Flash Lite...');
     
-    // Use gemini-2.5-flash-lite (stable, high limits, free tier)
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`,
       {
@@ -46,31 +45,26 @@ export async function callGemini(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ Gemini API error:', errorText);
+      console.error('❌ API Error:', errorText);
       
-      // Parse error
       try {
         const errorData = JSON.parse(errorText);
         if (errorData.error?.code === 429) {
-          console.warn('⚠️ Quota exceeded');
           throw new Error('QUOTA_EXCEEDED');
         }
-      } catch (e) {
-        // Not JSON error
-      }
+      } catch (e) {}
       
-      throw new Error(`API error ${response.status}`);
+      throw new Error(`API_ERROR_${response.status}`);
     }
 
     const data: GeminiResponse = await response.json();
     
     if (!data.candidates || data.candidates.length === 0) {
-      console.error('❌ No response from Gemini');
       throw new Error('NO_RESPONSE');
     }
 
     const text = data.candidates[0].content.parts[0].text;
-    console.log('✅ Gemini success:', text.length, 'chars');
+    console.log('✅ Response:', text.length, 'chars');
     
     return text;
   } catch (error: any) {
