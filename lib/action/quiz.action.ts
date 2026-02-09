@@ -20,35 +20,29 @@ export async function generateQuizFromSession(
     try {
       const { userId } = await auth();
       if (!userId) {
-        console.error('No user ID');
         throw new Error('Not authenticated');
       }
   
       // Validate inputs
       if (!sessionMessages || sessionMessages.length < 4) {
-        console.error('Not enough messages:', sessionMessages?.length);
+        console.warn('Not enough messages for quiz generation');
         throw new Error('Need at least 4 messages to generate quiz');
       }
   
       const supabase = CreateSupabaseServiceClient();
   
       console.log('🎯 Generating quiz from session...');
-      console.log('User:', userId);
-      console.log('Companion:', companionId);
       console.log('Messages:', sessionMessages.length);
   
-      // 1. Extract key concepts from session
-      console.log('Extracting concepts...');
-      const keyConcepts = await extractKeyConceptsFromSession(sessionMessages);
+      // 1. Extract key concepts
+      const keyConcepts = await extractKeyConceptsFromSession(sessionMessages, topic);
       console.log('✅ Concepts:', keyConcepts);
       
-      // 2. Generate session summary
-      console.log('Generating summary...');
+      // 2. Generate summary
       const sessionSummary = await generateSessionSummary(sessionMessages, topic);
       console.log('✅ Summary generated');
   
       // 3. Create quiz session
-      console.log('Creating quiz session...');
       const { data: quizSession, error: sessionError } = await supabase
         .from('quiz_sessions')
         .insert({
@@ -73,24 +67,23 @@ export async function generateQuizFromSession(
   
       console.log('✅ Quiz session created:', quizSession.id);
   
-      // 4. Generate questions using AI
-      console.log('Generating questions...');
-      const questions = await generateQuestionsFromConcepts(
+      // 4. Generate questions (with fallback)
+      let questions = await generateQuestionsFromConcepts(
         keyConcepts,
         sessionMessages,
         topic,
         subject
       );
-
-      // Don't throw error if we have fallback questions
-if (!questions || questions.length === 0) {
-    console.error('❌ No questions generated, even from fallback');
-    throw new Error('Failed to generate questions');
-  }
   
-  console.log('✅ Generated', questions.length, 'questions');
+      // Fallback if AI fails
+      if (!questions || questions.length === 0) {
+        console.warn('⚠️ Using fallback questions');
+        questions = generateFallbackQuestions(keyConcepts, topic, subject);
+      }
   
-      // 5. Save questions to database
+      console.log('✅ Generated', questions.length, 'questions');
+  
+      // 5. Save questions
       const questionsToInsert = questions.map((q, index) => ({
         quiz_session_id: quizSession.id,
         question_text: q.question_text,
@@ -108,11 +101,10 @@ if (!questions || questions.length === 0) {
         .insert(questionsToInsert);
   
       if (questionsError) {
-        console.error('Questions insert error:', questionsError);
         throw questionsError;
       }
   
-      console.log('✅ Questions saved to database');
+      console.log('✅ Questions saved');
   
       return {
         success: true,
@@ -121,8 +113,7 @@ if (!questions || questions.length === 0) {
       };
   
     } catch (error: any) {
-      console.error('❌ Error generating quiz:', error);
-      console.error('Error stack:', error.stack);
+      console.error('❌ Quiz generation error:', error.message);
       return {
         success: false,
         error: error.message,
@@ -328,83 +319,64 @@ export async function getQuizHistory() {
 // ============================
 
 async function extractKeyConceptsFromSession(
-    messages: Array<{role: string, content: string}>
+    messages: Array<{role: string, content: string}>,
+    topic: string
   ): Promise<string[]> {
     const conversationText = messages
       .filter(m => m.role === 'assistant')
       .map(m => m.content)
-      .join('\n')
-      .substring(0, 2000);
+      .join(' ')
+      .substring(0, 1500);
   
     try {
-      const prompt = `Extract 5-7 key concepts taught in this learning session. 
-  Return ONLY a valid JSON array of strings, with no additional text or explanation.
+      const prompt = `Extract 5 key learning concepts from this ${topic} session. Return as JSON array.
   
-  Session content:
-  ${conversationText}
+  Session: ${conversationText}
   
-  Required format (respond with ONLY this, nothing else):
-  ["concept1", "concept2", "concept3", "concept4", "concept5"]
+  Format: ["concept1", "concept2", "concept3", "concept4", "concept5"]`;
   
-  Example response:
-  ["Python loops", "Range function", "Conditional logic", "Break statements", "Iteration control"]`;
-  
-      const result = await callGemini(prompt, 500, 0.5);
+      const result = await callGemini(prompt, 300, 0.5);
       
-      console.log('Gemini concepts response:', result);
-      
-      // Extract JSON array from response
-      const jsonMatch = result.match(/\[[\s\S]*\]/);
+      const jsonMatch = result.match(/\[[\s\S]*?\]/);
       if (jsonMatch) {
         const concepts = JSON.parse(jsonMatch[0]);
-        console.log('✅ Extracted concepts:', concepts);
-        return concepts;
+        return concepts.slice(0, 5);
       }
       
-      console.warn('⚠️ Could not parse concepts, using fallback');
-      return ['General concepts from session'];
+      return [topic, `${topic} fundamentals`, `${topic} concepts`];
     } catch (error) {
-      console.error('❌ Error extracting concepts:', error);
-      return ['Session content'];
+      console.error('❌ Concept extraction failed:', error);
+      return [topic, `${topic} basics`, `${topic} principles`];
     }
-  }
+}
   
-  async function generateSessionSummary(
+async function generateSessionSummary(
     messages: Array<{role: string, content: string}>,
     topic: string
   ): Promise<string> {
     const conversationText = messages
-      .map(m => `${m.role}: ${m.content}`)
-      .join('\n')
-      .substring(0, 2000);
+      .map(m => m.content)
+      .join(' ')
+      .substring(0, 1500);
   
     try {
-      const prompt = `Create a concise 3-point summary of this learning session about "${topic}". 
-  Each point should be one clear sentence that captures a key learning.
+      const prompt = `Summarize this ${topic} learning session in 3 bullet points:
   
-  Session transcript:
   ${conversationText}
   
-  Format your response as:
-  - First key learning point
-  - Second key learning point
-  - Third key learning point
+  Format:
+  - Point 1
+  - Point 2
+  - Point 3`;
   
-  Keep each point to one sentence. Focus on what the student learned, not what was discussed.`;
-  
-      const summary = await callGemini(prompt, 300, 0.7);
-      
-      console.log('✅ Generated summary:', summary.substring(0, 100) + '...');
-      return summary;
+      return await callGemini(prompt, 200, 0.7);
     } catch (error) {
-      console.error('❌ Error generating summary:', error);
-      return `Session about ${topic} completed successfully.`;
+      console.error('❌ Summary failed:', error);
+      return `- Learned about ${topic}\n- Covered key concepts\n- Completed practice exercises`;
     }
-  }
+}
   
-
-// lib/action/quiz.action.ts - UPDATE generateQuestionsFromConcepts function
-
+  
 async function generateQuestionsFromConcepts(
     concepts: string[],
     sessionMessages: Array<{role: string, content: string}>,
@@ -413,146 +385,144 @@ async function generateQuestionsFromConcepts(
   ): Promise<any[]> {
     const conversationText = sessionMessages
       .map(m => m.content)
-      .join('\n')
-      .substring(0, 3000);
+      .join(' ')
+      .substring(0, 2000);
   
     try {
-      const prompt = `Create 5 multiple-choice quiz questions based on this "${topic}" learning session in ${subject}.
+      const prompt = `Create 5 quiz questions about ${topic} in ${subject}.
   
-  Key concepts covered: ${concepts.join(', ')}
+  Concepts: ${concepts.join(', ')}
+  Session: ${conversationText}
   
-  Session content:
-  ${conversationText}
-  
-  CRITICAL: Return ONLY a valid JSON array with NO additional text before or after. Do not include markdown code blocks or any explanation.
-  
-  Required JSON format (respond with ONLY this structure):
+  Return ONLY valid JSON (no markdown):
   [
     {
-      "question_text": "What is the purpose of the break statement in Python loops?",
+      "question_text": "Question here?",
       "question_type": "multiple_choice",
       "options": [
-        {"id": "a", "text": "To pause the loop temporarily"},
-        {"id": "b", "text": "To exit the loop immediately"},
-        {"id": "c", "text": "To skip the current iteration"},
-        {"id": "d", "text": "To restart the loop"}
+        {"id": "a", "text": "Option A"},
+        {"id": "b", "text": "Option B"},
+        {"id": "c", "text": "Option C"},
+        {"id": "d", "text": "Option D"}
       ],
-      "correct_answer": "b",
-      "explanation": "The break statement exits the loop immediately when executed.",
-      "concept_tested": "break statements",
-      "context": "We discussed how break statements control loop execution"
+      "correct_answer": "a",
+      "explanation": "Why A is correct",
+      "concept_tested": "${concepts[0]}",
+      "context": "From session"
     }
   ]
   
-  Requirements:
-  1. Create exactly 5 questions
-  2. Each question must have 4 options (a, b, c, d)
-  3. Questions must be specific to what was taught in this session
-  4. Include a clear explanation for each correct answer
-  5. Return pure JSON only, no markdown or extra text`;
+  5 questions total, 4 options each.`;
   
-      console.log('📝 Calling Gemini API...');
-      const result = await callGemini(prompt, 2500, 0.7);
+      const result = await callGemini(prompt, 2000, 0.7);
       
-      console.log('Gemini raw response:', result.substring(0, 500));
+      // Clean response
+      let cleaned = result
+        .replace(/```json\s*/g, '')
+        .replace(/```\s*/g, '')
+        .trim();
       
-      // Clean up response - remove markdown code blocks if present
-      let cleanedResult = result.trim();
-      cleanedResult = cleanedResult.replace(/```json\s*/g, '');
-      cleanedResult = cleanedResult.replace(/```\s*/g, '');
-      cleanedResult = cleanedResult.trim();
-      
-      console.log('Cleaned response:', cleanedResult.substring(0, 500));
-      
-      // Extract JSON array
-      const jsonMatch = cleanedResult.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        try {
-          const questions = JSON.parse(jsonMatch[0]);
-          
-          // Validate questions structure
-          if (Array.isArray(questions) && questions.length > 0) {
-            const validQuestions = questions.filter(q => 
-              q.question_text && 
-              q.options && 
-              Array.isArray(q.options) &&
-              q.options.length >= 4 &&
-              q.correct_answer
-            );
-            
-            if (validQuestions.length > 0) {
-              console.log('✅ Generated', validQuestions.length, 'valid questions');
-              return validQuestions;
-            }
-          }
-        } catch (parseError) {
-          console.error('❌ JSON parse error:', parseError);
-          console.error('Failed JSON:', jsonMatch[0]);
-        }
+      // Extract JSON
+      const jsonMatch = cleaned.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) {
+        return [];
       }
       
-      console.warn('⚠️ Could not parse questions JSON, using fallback');
+      const questions = JSON.parse(jsonMatch[0]);
       
-      // FALLBACK: Generate generic questions based on concepts
-      return generateFallbackQuestions(concepts, topic, subject);
+      // Validate
+      const valid = questions.filter((q: any) => 
+        q.question_text && 
+        q.options?.length === 4 &&
+        q.correct_answer
+      );
+      
+      return valid.slice(0, 5);
       
     } catch (error) {
-      console.error('❌ Error generating questions:', error);
-      console.error('Error details:', {
-        message: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined
-      });
-      
-      // Return fallback questions instead of throwing
-      return generateFallbackQuestions(concepts, topic, subject);
+      console.error('❌ Question generation failed:', error);
+      return [];
     }
   }
   
-  // NEW: Fallback question generator
-  function generateFallbackQuestions(
+function generateFallbackQuestions(
     concepts: string[],
     topic: string,
     subject: string
   ): any[] {
-    console.log('🔄 Generating fallback questions for:', topic);
-    
-    const fallbackQuestions = concepts.slice(0, 5).map((concept, index) => ({
-      question_text: `What did you learn about ${concept} in this ${topic} session?`,
-      question_type: 'multiple_choice',
-      options: [
-        { id: 'a', text: `${concept} is a fundamental concept in ${subject}` },
-        { id: 'b', text: `${concept} is not relevant to ${topic}` },
-        { id: 'c', text: `${concept} should be avoided in practice` },
-        { id: 'd', text: `${concept} is an outdated concept` }
-      ],
-      correct_answer: 'a',
-      explanation: `During the session, we covered ${concept} as an important part of ${topic}.`,
-      concept_tested: concept,
-      context: `We discussed ${concept} in the context of ${topic}`
-    }));
-    
-    // Ensure we have at least 5 questions
-    while (fallbackQuestions.length < 5) {
-      const index = fallbackQuestions.length;
-      fallbackQuestions.push({
-        question_text: `What is an important aspect of ${topic}?`,
+    return [
+      {
+        question_text: `What is the main focus of ${topic}?`,
         question_type: 'multiple_choice',
         options: [
-          { id: 'a', text: `Understanding the fundamentals of ${topic}` },
-          { id: 'b', text: `Ignoring ${subject} principles` },
-          { id: 'c', text: `Skipping practice exercises` },
-          { id: 'd', text: `Memorizing without understanding` }
+          { id: 'a', text: `Understanding ${concepts[0] || topic}` },
+          { id: 'b', text: 'Memorizing formulas' },
+          { id: 'c', text: 'Skipping practice' },
+          { id: 'd', text: 'Avoiding fundamentals' }
         ],
         correct_answer: 'a',
-        explanation: `It's important to understand the fundamentals when learning ${topic}.`,
-        concept_tested: topic,
-        context: `General concept from ${topic} session`
-      });
-    }
-    
-    console.log('✅ Generated', fallbackQuestions.length, 'fallback questions');
-    return fallbackQuestions;
-  }
+        explanation: `${topic} focuses on understanding ${concepts[0] || 'key concepts'}.`,
+        concept_tested: concepts[0] || topic,
+        context: 'General understanding'
+      },
+      {
+        question_text: `Which concept is important in ${subject}?`,
+        question_type: 'multiple_choice',
+        options: [
+          { id: 'a', text: 'Random guessing' },
+          { id: 'b', text: concepts[1] || `${topic} principles` },
+          { id: 'c', text: 'Ignoring theory' },
+          { id: 'd', text: 'Skipping basics' }
+        ],
+        correct_answer: 'b',
+        explanation: `${concepts[1] || 'Key principles'} are fundamental to ${subject}.`,
+        concept_tested: concepts[1] || topic,
+        context: 'Core concepts'
+      },
+      {
+        question_text: `What did you learn about ${topic}?`,
+        question_type: 'multiple_choice',
+        options: [
+          { id: 'a', text: `${concepts[2] || topic} is essential` },
+          { id: 'b', text: 'It can be skipped' },
+          { id: 'c', text: 'It is outdated' },
+          { id: 'd', text: 'It is optional' }
+        ],
+        correct_answer: 'a',
+        explanation: `${concepts[2] || topic} is a crucial part of learning ${subject}.`,
+        concept_tested: concepts[2] || topic,
+        context: 'Learning outcomes'
+      },
+      {
+        question_text: `How should you approach ${topic}?`,
+        question_type: 'multiple_choice',
+        options: [
+          { id: 'a', text: 'Skip the fundamentals' },
+          { id: 'b', text: 'Memorize without understanding' },
+          { id: 'c', text: 'Practice and understand concepts' },
+          { id: 'd', text: 'Avoid practical examples' }
+        ],
+        correct_answer: 'c',
+        explanation: 'Practicing and understanding concepts leads to better mastery.',
+        concept_tested: concepts[3] || topic,
+        context: 'Learning strategy'
+      },
+      {
+        question_text: `What is a key takeaway from this ${topic} session?`,
+        question_type: 'multiple_choice',
+        options: [
+          { id: 'a', text: 'Theory is not important' },
+          { id: 'b', text: 'Practice makes perfect' },
+          { id: 'c', text: `Understanding ${concepts[4] || topic} deeply` },
+          { id: 'd', text: 'Shortcuts are always better' }
+        ],
+        correct_answer: 'c',
+        explanation: `Deep understanding of ${concepts[4] || topic} is essential for mastery.`,
+        concept_tested: concepts[4] || topic,
+        context: 'Session summary'
+      },
+    ];
+}
   
   
 
