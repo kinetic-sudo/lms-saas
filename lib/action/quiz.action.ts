@@ -400,7 +400,10 @@ async function extractKeyConceptsFromSession(
     }
   }
   
-  async function generateQuestionsFromConcepts(
+
+// lib/action/quiz.action.ts - UPDATE generateQuestionsFromConcepts function
+
+async function generateQuestionsFromConcepts(
     concepts: string[],
     sessionMessages: Array<{role: string, content: string}>,
     topic: string,
@@ -446,31 +449,110 @@ async function extractKeyConceptsFromSession(
   4. Include a clear explanation for each correct answer
   5. Return pure JSON only, no markdown or extra text`;
   
+      console.log('📝 Calling Gemini API...');
       const result = await callGemini(prompt, 2500, 0.7);
       
-      console.log('Gemini questions response (first 200 chars):', result.substring(0, 200));
+      console.log('Gemini raw response:', result.substring(0, 500));
       
       // Clean up response - remove markdown code blocks if present
       let cleanedResult = result.trim();
-      cleanedResult = cleanedResult.replace(/```json\n?/g, '');
-      cleanedResult = cleanedResult.replace(/```\n?/g, '');
+      cleanedResult = cleanedResult.replace(/```json\s*/g, '');
+      cleanedResult = cleanedResult.replace(/```\s*/g, '');
       cleanedResult = cleanedResult.trim();
+      
+      console.log('Cleaned response:', cleanedResult.substring(0, 500));
       
       // Extract JSON array
       const jsonMatch = cleanedResult.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
-        const questions = JSON.parse(jsonMatch[0]);
-        console.log('✅ Generated', questions.length, 'questions');
-        return questions;
+        try {
+          const questions = JSON.parse(jsonMatch[0]);
+          
+          // Validate questions structure
+          if (Array.isArray(questions) && questions.length > 0) {
+            const validQuestions = questions.filter(q => 
+              q.question_text && 
+              q.options && 
+              Array.isArray(q.options) &&
+              q.options.length >= 4 &&
+              q.correct_answer
+            );
+            
+            if (validQuestions.length > 0) {
+              console.log('✅ Generated', validQuestions.length, 'valid questions');
+              return validQuestions;
+            }
+          }
+        } catch (parseError) {
+          console.error('❌ JSON parse error:', parseError);
+          console.error('Failed JSON:', jsonMatch[0]);
+        }
       }
       
-      console.warn('⚠️ Could not parse questions JSON');
-      return [];
+      console.warn('⚠️ Could not parse questions JSON, using fallback');
+      
+      // FALLBACK: Generate generic questions based on concepts
+      return generateFallbackQuestions(concepts, topic, subject);
+      
     } catch (error) {
       console.error('❌ Error generating questions:', error);
-      return [];
+      console.error('Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      
+      // Return fallback questions instead of throwing
+      return generateFallbackQuestions(concepts, topic, subject);
     }
   }
+  
+  // NEW: Fallback question generator
+  function generateFallbackQuestions(
+    concepts: string[],
+    topic: string,
+    subject: string
+  ): any[] {
+    console.log('🔄 Generating fallback questions for:', topic);
+    
+    const fallbackQuestions = concepts.slice(0, 5).map((concept, index) => ({
+      question_text: `What did you learn about ${concept} in this ${topic} session?`,
+      question_type: 'multiple_choice',
+      options: [
+        { id: 'a', text: `${concept} is a fundamental concept in ${subject}` },
+        { id: 'b', text: `${concept} is not relevant to ${topic}` },
+        { id: 'c', text: `${concept} should be avoided in practice` },
+        { id: 'd', text: `${concept} is an outdated concept` }
+      ],
+      correct_answer: 'a',
+      explanation: `During the session, we covered ${concept} as an important part of ${topic}.`,
+      concept_tested: concept,
+      context: `We discussed ${concept} in the context of ${topic}`
+    }));
+    
+    // Ensure we have at least 5 questions
+    while (fallbackQuestions.length < 5) {
+      const index = fallbackQuestions.length;
+      fallbackQuestions.push({
+        question_text: `What is an important aspect of ${topic}?`,
+        question_type: 'multiple_choice',
+        options: [
+          { id: 'a', text: `Understanding the fundamentals of ${topic}` },
+          { id: 'b', text: `Ignoring ${subject} principles` },
+          { id: 'c', text: `Skipping practice exercises` },
+          { id: 'd', text: `Memorizing without understanding` }
+        ],
+        correct_answer: 'a',
+        explanation: `It's important to understand the fundamentals when learning ${topic}.`,
+        concept_tested: topic,
+        context: `General concept from ${topic} session`
+      });
+    }
+    
+    console.log('✅ Generated', fallbackQuestions.length, 'fallback questions');
+    return fallbackQuestions;
+  }
+  
+  
 
 async function updateUserProgress(
   userId: string,
