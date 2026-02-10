@@ -66,6 +66,8 @@ const CompanionComponent = ({
     const [showLanguageMenu, setShowLanguageMenu] = useState(false);
     const [showQuizPrompt, setShowQuizPrompt] = useState(false);
     const [quizSessionId, setQuizSessionId] = useState<string | null>(null)
+    const [hasCompletedQuiz, setHasCompletedQuiz] = useState(false); // NEW STATE
+
 
     const router = useRouter()
 
@@ -128,68 +130,53 @@ const CompanionComponent = ({
     // --- Vapi Event Handlers ---
     // components/CompanionComponent.tsx - Fix the onCallEnd handler
 
-useEffect(() => {
+useEffect(() => {    
     const onCallStart = () => setCallStatus(CallStatus.ACTIVE)
-    
-    const onCallEnd = async () => {
-        setCallStatus(CallStatus.FINISHED);
-        await addToSessionHistory(companionId);
         
-        if (hasHistoryPermission && messages.length > 0) {
-            try {
-                const messagesToSave = [...messages].reverse();
-                const savedHistory = await saveConversationHistory(
-                    companionId, 
-                    messagesToSave, 
-                    selectedLanguage
-                );
-                
-                console.log('✅ Conversation saved:', savedHistory);
-                
-                // Check if user has quiz permission
-                const canTakeQuiz = await hasQuizPermission();
-                
-                console.log('Quiz permission:', canTakeQuiz);
-                console.log('Saved history ID:', savedHistory?.id);
-                console.log('Messages count:', messagesToSave.length);
-                
-                if (canTakeQuiz && savedHistory?.id && messagesToSave.length >= 4) {
-                    console.log('🎯 Generating quiz for session...');
-                    
-                    // Generate quiz from session
-                    const quizResult = await generateQuizFromSession(
-                        companionId,
-                        savedHistory.id,
-                        messagesToSave,
-                        subject,
-                        topic
+        const onCallEnd = async () => {
+            setCallStatus(CallStatus.FINISHED);
+            await addToSessionHistory(companionId);
+            
+            if (hasHistoryPermission && messages.length > 0) {
+                try {
+                    const messagesToSave = [...messages].reverse();
+                    const savedHistory = await saveConversationHistory(
+                        companionId, 
+                        messagesToSave, 
+                        selectedLanguage
                     );
                     
-                    console.log('Quiz result:', quizResult);
+                    console.log('✅ Conversation saved:', savedHistory);
                     
-                    if (quizResult.success) {
-                        console.log('✅ Quiz generated:', quizResult.quizSessionId);
+                    const canTakeQuiz = await hasQuizPermission();
+                    
+                    if (canTakeQuiz && savedHistory?.id && messagesToSave.length >= 4) {
+                        console.log('🎯 Generating quiz for session...');
                         
-                        // Show quiz prompt
-                        setShowQuizPrompt(true);
-                        setQuizSessionId(quizResult.quizSessionId);
-                    } else {
-                        console.error('❌ Quiz generation failed:', quizResult.error);
+                        const quizResult = await generateQuizFromSession(
+                            companionId,
+                            savedHistory.id,
+                            messagesToSave,
+                            subject,
+                            topic
+                        );
+                        
+                        if (quizResult.success) {
+                            console.log('✅ Quiz generated:', quizResult.quizSessionId);
+                            setShowQuizPrompt(true);
+                            setQuizSessionId(quizResult.quizSessionId);
+                            
+                            // Store in localStorage for persistence
+                            localStorage.setItem(`quiz_${companionId}`, quizResult.quizSessionId);
+                        }
                     }
-                } else {
-                    console.log('⚠️ Quiz not generated:', {
-                        canTakeQuiz,
-                        hasHistoryId: !!savedHistory?.id,
-                        messageCount: messagesToSave.length
-                    });
+                } catch (error) {
+                    console.error('❌ Error in onCallEnd:', error);
                 }
-            } catch (error) {
-                console.error('❌ Error in onCallEnd:', error);
             }
+            
+            setIsResuming(false);
         }
-        
-        setIsResuming(false);
-    }
     
     const onMessage = (message: any) => {
         if (message.type === 'transcript' && message.transcriptType === 'final') {
@@ -279,6 +266,26 @@ useEffect(() => {
         vapi.stop()
     }
 
+    useEffect(() => {
+        const savedQuizId = localStorage.getItem(`quiz_${companionId}`);
+        if (savedQuizId) {
+            setQuizSessionId(savedQuizId);
+        }
+    }, [companionId]);
+
+    // Handle quiz dismissal
+    const handleDismissQuiz = () => {
+        setShowQuizPrompt(false);
+        setHasCompletedQuiz(true);
+    };
+
+    // Handle "View Quiz Again"
+    const handleViewQuiz = () => {
+        if (quizSessionId) {
+            router.push(`/quiz/${quizSessionId}`);
+        }
+    };
+
     // const handleResumeConversation = () => {
     //     if (savedConversation?.messages) {
     //         console.log('Resuming with messages:', savedConversation.messages);
@@ -359,48 +366,70 @@ useEffect(() => {
 
             {/* Free User Quiz Upgrade Prompt - Show after session if no quiz permission */}
             {showQuizPrompt && quizSessionId && callStatus === CallStatus.FINISHED && (
-      <div className="lg:col-span-3 animate-in slide-in-from-top-5 duration-500">
-        <div className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-[2.5rem] p-6 border-2 border-purple-200 shadow-lg">
-          <div className="flex items-start gap-4">
-            <div className="size-14 rounded-full bg-purple-500 flex items-center justify-center text-white flex-shrink-0">
-              <BookOpen size={26} strokeWidth={2.5} />
+            <div className="lg:col-span-3 animate-in slide-in-from-top-5 duration-500">
+                <div className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-[2.5rem] p-6 border-2 border-purple-200 shadow-lg">
+                    <div className="flex items-start gap-4">
+                        <div className="size-14 rounded-full bg-purple-500 flex items-center justify-center text-white flex-shrink-0">
+                            <BookOpen size={26} strokeWidth={2.5} />
+                        </div>
+                        
+                        <div className="flex-1">
+                            <h3 className="font-bold text-xl text-slate-900 mb-2">
+                                🎉 Session Complete!
+                            </h3>
+                            <p className="text-slate-600 text-sm mb-4 leading-relaxed">
+                                Great work! Test your knowledge with a quick 5-question quiz based on what you just learned.
+                            </p>
+                            
+                            <div className="flex flex-wrap items-center gap-3">
+                                <button
+                                    onClick={handleViewQuiz}
+                                    className="bg-purple-600 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-md hover:bg-purple-700 transition-all active:scale-95"
+                                >
+                                    Take Quiz Now
+                                </button>
+                                
+                                <button
+                                    onClick={handleDismissQuiz}
+                                    className="bg-white text-slate-700 border-2 border-slate-200 px-6 py-3 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all active:scale-95"
+                                >
+                                    Maybe Later
+                                </button>
+                            </div>
+                            
+                            <p className="text-xs text-slate-500 mt-3">
+                                💡 You can access this quiz anytime from this companion page
+                            </p>
+                        </div>
+                    </div>
+                </div>
             </div>
-            
-            <div className="flex-1">
-              <h3 className="font-bold text-xl text-slate-900 mb-2">
-                🎉 Session Complete!
-              </h3>
-              <p className="text-slate-600 text-sm mb-4 leading-relaxed">
-                Great work! Test your knowledge with a quick 5-question quiz based on what you just learned.
-              </p>
-              
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  onClick={() => router.push(`/quiz/${quizSessionId}`)}
-                  className="bg-purple-600 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-md hover:bg-purple-700 transition-all active:scale-95"
-                >
-                  Take Quiz Now
-                </button>
-                
-                <button
-                  onClick={() => {
-                    setShowQuizPrompt(false);
-                    router.push('/my-journey');
-                  }}
-                  className="bg-white text-slate-700 border-2 border-slate-200 px-6 py-3 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all active:scale-95"
-                >
-                  Maybe Later
-                </button>
-              </div>
-              
-              <p className="text-xs text-slate-500 mt-3">
-                💡 Quizzes help reinforce your learning and track progress
-              </p>
+        )}
+
+
+        {/* QUIZ AVAILABLE BANNER - Show when quiz exists and prompt is dismissed */}
+{quizSessionId && !showQuizPrompt && callStatus === CallStatus.INACTIVE && (
+            <div className="lg:col-span-3 animate-in fade-in duration-300">
+                <div className="bg-white border-2 border-purple-100 rounded-2xl p-4 flex items-center justify-between gap-4 hover:border-purple-300 transition-all">
+                    <div className="flex items-center gap-3">
+                        <div className="size-10 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
+                            <BookOpen size={20} className="text-purple-600" />
+                        </div>
+                        <div>
+                            <p className="font-bold text-slate-900 text-sm">Quiz Available</p>
+                            <p className="text-xs text-slate-500">Test your knowledge from your last session</p>
+                        </div>
+                    </div>
+                    
+                    <button
+                        onClick={handleViewQuiz}
+                        className="bg-purple-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-purple-700 transition-all active:scale-95 whitespace-nowrap"
+                    >
+                        View Quiz
+                    </button>
+                </div>
             </div>
-          </div>
-        </div>
-      </div>
-    )}
+        )}
 
             {/* Upgrade Prompt for Free Users - FIXED CONDITION */}
             {hasHistoryPermission === false && callStatus === CallStatus.INACTIVE && !showResumePrompt && (
@@ -431,50 +460,7 @@ useEffect(() => {
                 </div>
             )}
 
-{showQuizPrompt && quizSessionId && callStatus === CallStatus.FINISHED && (
-  <div className="lg:col-span-3 animate-in slide-in-from-top-5 duration-500">
-    <div className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-[2.5rem] p-6 border-2 border-purple-200 shadow-lg">
-      
-      <div className="flex items-start gap-4">
-        <div className="size-14 rounded-full bg-purple-500 flex items-center justify-center text-white flex-shrink-0">
-          <BookOpen size={26} strokeWidth={2.5} />
-        </div>
-        
-        <div className="flex-1">
-          <h3 className="font-bold text-xl text-slate-900 mb-2">
-            🎉 Session Complete!
-          </h3>
-          <p className="text-slate-600 text-sm mb-4 leading-relaxed">
-            Great work! Test your knowledge with a quick 5-question quiz based on what you just learned.
-          </p>
-          
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              onClick={() => router.push(`/quiz/${quizSessionId}`)}
-              className="bg-purple-600 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-md hover:bg-purple-700 transition-all active:scale-95"
-            >
-              Take Quiz Now
-            </button>
-            
-            <button
-              onClick={() => {
-                setShowQuizPrompt(false);
-                router.push('/my-journey');
-              }}
-              className="bg-white text-slate-700 border-2 border-slate-200 px-6 py-3 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all active:scale-95"
-            >
-              Maybe Later
-            </button>
-          </div>
-          
-          <p className="text-xs text-slate-500 mt-3">
-            💡 Quizzes help reinforce your learning and track progress
-          </p>
-        </div>
-      </div>
-    </div>
-  </div>
-)}
+
             
              {/* LEFT COLUMN: Monitor (Spans 2 columns) */}
              <div className={cn(cardClass, "lg:col-span-2 flex flex-col items-center justify-center min-h-[500px] relative overflow-hidden transition-all")}>
@@ -578,6 +564,29 @@ useEffect(() => {
                         <p className="text-xl font-bold text-slate-900 leading-none">{userName}</p>
                     </div>
                 </div>
+
+
+                {/* Quiz Quick Access Card - In sidebar when quiz exists */}
+                {quizSessionId && callStatus === CallStatus.INACTIVE && !showQuizPrompt && (
+                <div className={cn(cardClass, "py-6")}>
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="size-12 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
+                            <BookOpen size={22} className="text-purple-600" />
+                        </div>
+                        <div>
+                            <p className="font-bold text-slate-900">Session Quiz</p>
+                            <p className="text-xs text-slate-500">Ready to test your knowledge</p>
+                        </div>
+                    </div>
+                    
+                    <button
+                        onClick={handleViewQuiz}
+                        className="w-full bg-purple-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-purple-700 transition-all active:scale-95"
+                    >
+                        Start Quiz
+                    </button>
+                </div>
+            )}
 
                 {/* Language Selection */}
                 <div className={cn(cardClass, "py-6")}>
