@@ -69,10 +69,19 @@ const CompanionComponent = ({
     const [hasCompletedQuiz, setHasCompletedQuiz] = useState(false); // NEW STATE
 
 
+
     const router = useRouter()
 
 
     const lottieRef = useRef<LottieRefCurrentProps>(null);
+
+    useEffect(() => {
+        const savedQuizId = localStorage.getItem(`quiz_${companionId}`);
+        console.log('📚 Checking for saved quiz:', savedQuizId); // DEBUG
+        if (savedQuizId && savedQuizId !== 'null' && savedQuizId !== 'undefined') {
+            setQuizSessionId(savedQuizId);
+        }
+    }, [companionId]);
 
     // Check for saved conversation on mount
     useEffect(() => {
@@ -211,6 +220,7 @@ useEffect(() => {
     }
 }, [companionId, hasHistoryPermission, messages, subject, topic, selectedLanguage])
 
+
     const toggleMicrophone = () => {
         const muted = !isMuted;
         vapi.setMuted(muted)
@@ -277,14 +287,22 @@ useEffect(() => {
     const handleDismissQuiz = () => {
         setShowQuizPrompt(false);
         setHasCompletedQuiz(true);
+        console.log('Quiz dismissed, ID preserved:', quizSessionId); // DEBUG
     };
 
     // Handle "View Quiz Again"
     const handleViewQuiz = () => {
-        if (quizSessionId) {
-            router.push(`/quiz/${quizSessionId}`);
+        console.log('🎯 Navigating to quiz:', quizSessionId); // DEBUG
+        
+        if (!quizSessionId || quizSessionId === 'null' || quizSessionId === 'undefined') {
+            console.error('❌ Invalid quiz ID:', quizSessionId);
+            alert('Quiz not available. Please complete a learning session first.');
+            return;
         }
+        
+        router.push(`/quiz/${quizSessionId}`);
     };
+    
 
     // const handleResumeConversation = () => {
     //     if (savedConversation?.messages) {
