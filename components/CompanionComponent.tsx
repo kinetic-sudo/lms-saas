@@ -186,6 +186,16 @@ useEffect(() => {
             
             setIsResuming(false);
         }
+
+        Object.keys(localStorage)
+  .filter(key => key.startsWith('quiz_'))
+  .forEach(key => {
+    const value = localStorage.getItem(key);
+    if (value === 'undefined' || value === 'null' || !value) {
+      console.log('Removing bad quiz entry:', key, value);
+      localStorage.removeItem(key);
+    }
+  });
     
     const onMessage = (message: any) => {
         if (message.type === 'transcript' && message.transcriptType === 'final') {

@@ -1,4 +1,4 @@
-// app/quiz/[quizId]/page.tsx
+// app/quiz/[quizSessionId]/page.tsx
 'use client'
 
 import React, { useEffect, useState } from 'react'
@@ -11,8 +11,8 @@ import { Loader2, Lock, TrendingUp } from 'lucide-react'
 export default function QuizPage() {
   const router = useRouter();
   const params = useParams();
-  const { user, isLoaded } = useUser(); // Add isLoaded
-  const quizId = params.quizId as string;
+  const { user, isLoaded } = useUser();
+  const quizSessionId = params.quizSessionId as string; // FIXED: Match folder name
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -22,7 +22,6 @@ export default function QuizPage() {
   useEffect(() => {
     const checkAccessAndLoadQuiz = async () => {
       try {
-        // Wait for user to load
         if (!isLoaded) {
           console.log('Waiting for user to load...');
           return;
@@ -34,15 +33,23 @@ export default function QuizPage() {
           return;
         }
 
+        // VALIDATE QUIZ ID
+        if (!quizSessionId || 
+            quizSessionId === 'undefined' || 
+            quizSessionId === 'null' ||
+            quizSessionId.length < 10) {
+          console.error('❌ Invalid quiz ID:', quizSessionId);
+          setError('Invalid quiz ID');
+          setLoading(false);
+          return;
+        }
+
         setLoading(true);
         
-        // Check subscription
         const planKey = (user?.publicMetadata?.plan as string) || 'basic';
         console.log('User plan:', planKey);
         
         const hasQuizAccess = planKey === 'intermediate' || planKey === 'pro';
-        console.log('Has quiz access:', hasQuizAccess);
-        
         setHasAccess(hasQuizAccess);
         
         if (!hasQuizAccess) {
@@ -51,9 +58,8 @@ export default function QuizPage() {
           return;
         }
 
-        // Load quiz data
-        console.log('Loading quiz:', quizId);
-        const result = await getQuizData(quizId);
+        console.log('Loading quiz:', quizSessionId);
+        const result = await getQuizData(quizSessionId);
 
         console.log('Quiz result:', result);
 
@@ -61,7 +67,6 @@ export default function QuizPage() {
           throw new Error(result.error || 'Failed to load quiz');
         }
 
-        console.log('Quiz data loaded successfully:', result.data);
         setQuizData(result.data);
         
       } catch (err: any) {
@@ -73,13 +78,13 @@ export default function QuizPage() {
     };
 
     checkAccessAndLoadQuiz();
-  }, [quizId, user, isLoaded, router]);
+  }, [quizSessionId, user, isLoaded, router]);
 
   const handleQuizCompletion = async (answers: Record<number, string>) => {
     try {
       console.log('Submitting answers:', answers);
       
-      const result = await submitQuizAnswers(quizId, answers);
+      const result = await submitQuizAnswers(quizSessionId, answers);
 
       if (!result.success) {
         throw new Error(result.error || 'Failed to submit quiz');
@@ -87,15 +92,13 @@ export default function QuizPage() {
 
       console.log('Quiz submitted:', result);
       
-      // Redirect to results page
-      router.push(`/quiz/${quizId}/results?score=${result.score}&total=${result.total}&percentage=${result.percentage}`);
+      router.push(`/quiz/${quizSessionId}/results?score=${result.score}&total=${result.total}&percentage=${result.percentage}`);
     } catch (err: any) {
       console.error('Error submitting quiz:', err);
       alert('Failed to submit quiz. Please try again.');
     }
   };
 
-  // Wait for user to load
   if (!isLoaded) {
     return (
       <div className="min-h-screen bg-[#F9FAFB] flex items-center justify-center">
@@ -107,7 +110,6 @@ export default function QuizPage() {
     );
   }
 
-  // Loading state
   if (loading) {
     return (
       <div className="min-h-screen bg-[#F9FAFB] flex items-center justify-center">
@@ -119,12 +121,10 @@ export default function QuizPage() {
     );
   }
 
-  // No access - Upgrade prompt
   if (hasAccess === false) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 flex items-center justify-center px-4">
         <div className="bg-white rounded-[2.5rem] p-8 md:p-12 max-w-2xl w-full shadow-2xl border border-purple-100">
-          {/* ... rest of upgrade prompt ... */}
           <div className="flex justify-center mb-6">
             <div className="size-24 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center shadow-lg">
               <Lock size={48} className="text-white" />
@@ -136,7 +136,7 @@ export default function QuizPage() {
               Quizzes are Premium Only
             </h1>
             <p className="text-slate-600 text-lg mb-6">
-              Unlock personalized quizzes and track your progress with our premium plans!
+              Unlock personalized quizzes and track your progress!
             </p>
 
             <button
@@ -159,28 +159,24 @@ export default function QuizPage() {
     );
   }
 
-  // Error state
   if (error || !quizData) {
     return (
       <div className="min-h-screen bg-[#F9FAFB] flex items-center justify-center px-4">
         <div className="bg-white rounded-2xl p-8 max-w-md text-center border border-red-100">
           <div className="text-red-500 text-5xl mb-4">⚠️</div>
           <h2 className="text-xl font-bold text-slate-900 mb-2">Quiz Not Found</h2>
-          <p className="text-slate-600 mb-6">{error || 'This quiz does not exist or has expired.'}</p>
+          <p className="text-slate-600 mb-6">{error || 'This quiz does not exist.'}</p>
           <button
-            onClick={() => router.push('/my-journey')}
+            onClick={() => router.push('/companion')}
             className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-slate-800"
           >
-            Go to My Journey
+            Back to Learning
           </button>
         </div>
       </div>
     );
   }
 
-  // Quiz loaded - show quiz interface
-  console.log('Rendering quiz with data:', quizData);
-  
   return (
     <div className="min-h-screen bg-[#F9FAFB] py-12 px-4 md:px-6">
       <InlineQuizComponent 
