@@ -517,3 +517,38 @@ export async function getQuizResults(quizSessionId: string) {
       return { success: false, error: error.message };
     }
   }
+
+  // lib/action/quiz.action.ts - Add this function at the end
+
+export async function getUserQuizHistory() {
+    try {
+      const { userId } = await auth();
+      if (!userId) return [];
+  
+      const supabase = CreateSupabaseServiceClient();
+  
+      const { data, error } = await supabase
+        .from('quiz_sessions')
+        .select(`
+          *,
+          companion:companion_id (
+            id,
+            name,
+            subject,
+            topic
+          )
+        `)
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+  
+      if (error) {
+        console.error('Error fetching quiz history:', error);
+        return [];
+      }
+  
+      return data || [];
+    } catch (error) {
+      console.error('Error in getUserQuizHistory:', error);
+      return [];
+    }
+  }
