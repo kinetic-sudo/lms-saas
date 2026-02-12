@@ -1,4 +1,5 @@
 import { getUserCompanion, getUserSessions, getAllConversationHistories } from "@/lib/action/companion.action"
+import { getUserQuizHistory } from "@/lib/action/quiz.action"
 import { currentUser } from "@clerk/nextjs/server"
 import { redirect } from "next/navigation"
 import Image from "next/image"
@@ -10,23 +11,28 @@ const Profile = async () => {
   if(!user) redirect('/sign-in')
 
   // --- 1. GET PLAN STATUS ---
-  const activePlan = (user.publicMetadata?.plan as string) || 'Basic';
+  const activePlan = (user.publicMetadata?.plan as string) || 'basic';
   const isPro = activePlan === 'pro' || activePlan === 'intermediate';
 
   const companions = await getUserCompanion(user.id)
   const sessionHistory = await getUserSessions(user.id)
 
+  // --- 2. FETCH PREMIUM FEATURES ---
   let savedConversations = [];
+  let quizHistory = [];
+  
   try {
-    // Only fetch history if they are on a paid plan
     if (isPro) {
-        savedConversations = await getAllConversationHistories();
+      savedConversations = await getAllConversationHistories();
+      quizHistory = await getUserQuizHistory();
     }
   } catch (error) {
+    console.error('Error fetching premium features:', error);
     savedConversations = [];
+    quizHistory = [];
   }
 
-  // --- 2. BADGE STYLING ---
+  // --- 3. BADGE STYLING ---
   const badgeColor = activePlan === 'pro' ? 'bg-violet-100 text-violet-700 border-violet-200' : 
                      activePlan === 'intermediate' ? 'bg-orange-100 text-orange-700 border-orange-200' : 
                      'bg-slate-100 text-slate-600 border-slate-200';
@@ -51,7 +57,6 @@ const Profile = async () => {
                     <h1 className="font-bold text-3xl text-[#111111]">
                       {user.firstName} {user.lastName}
                     </h1>
-                    {/* --- PLAN BADGE --- */}
                     <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${badgeColor}`}>
                         {activePlan} Plan
                     </span>
@@ -80,13 +85,26 @@ const Profile = async () => {
                     Companions Created
                 </span>
             </div>
+
+            {isPro && (
+              <div className="flex flex-col gap-1">
+                  <span className="text-4xl font-black text-purple-500 tracking-tight">
+                      {String(quizHistory.length).padStart(2, '0')}
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      Quizzes Taken
+                  </span>
+              </div>
+            )}
         </div>
       </section>
 
       <JourneyTabs 
         sessions={sessionHistory} 
         companions={companions} 
-        savedConversations={savedConversations} 
+        savedConversations={savedConversations}
+        quizHistory={quizHistory}
+        isPro={isPro}
       />
 
     </main>
