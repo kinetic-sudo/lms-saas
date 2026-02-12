@@ -85,13 +85,14 @@ export default function QuizPage() {
       console.log('Submitting answers:', answers);
       
       const result = await submitQuizAnswers(quizSessionId, answers);
-
+  
       if (!result.success) {
         throw new Error(result.error || 'Failed to submit quiz');
       }
-
+  
       console.log('Quiz submitted:', result);
       
+      // FIX: Remove the extra "result/" from the path
       router.push(`/quiz/${quizSessionId}/results?score=${result.score}&total=${result.total}&percentage=${result.percentage}`);
     } catch (err: any) {
       console.error('Error submitting quiz:', err);

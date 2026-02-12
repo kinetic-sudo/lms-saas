@@ -1,8 +1,7 @@
-// app/quiz/[quizId]/results/page.tsx
 'use client'
 
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Award, TrendingUp, RotateCcw, Home } from 'lucide-react'
+import { Award, TrendingUp, Home } from 'lucide-react'
 import confetti from 'canvas-confetti'
 import { useEffect } from 'react'
 
@@ -86,11 +85,11 @@ export default function QuizResults() {
         {/* Action Buttons */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <button
-            onClick={() => router.push('/progress-report')}
+            onClick={() => router.push('/companion')}
             className="flex items-center justify-center gap-2 bg-purple-600 text-white py-4 rounded-xl font-bold hover:bg-purple-700 transition"
           >
             <TrendingUp size={20} />
-            View Progress
+            Continue Learning
           </button>
           
           <button
@@ -98,7 +97,7 @@ export default function QuizResults() {
             className="flex items-center justify-center gap-2 bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-slate-800 transition"
           >
             <Home size={20} />
-            Continue Learning
+            Back to Home
           </button>
         </div>
 
