@@ -466,3 +466,54 @@ export async function getQuizHistory() {
     return [];
   }
 }
+
+export async function getQuizResults(quizSessionId: string) {
+    try {
+      const { userId } = await auth();
+      if (!userId) throw new Error('Not authenticated');
+  
+      const supabase = CreateSupabaseServiceClient();
+  
+      // Get quiz session
+      const { data: session, error: sessionError } = await supabase
+        .from('quiz_sessions')
+        .select('*')
+        .eq('id', quizSessionId)
+        .eq('user_id', userId)
+        .single();
+  
+      if (sessionError) throw sessionError;
+  
+      // Get questions with user answers
+      const { data: questions, error: questionsError } = await supabase
+        .from('quiz_questions')
+        .select(`
+          *,
+          quiz_answers!inner(user_answer, is_correct)
+        `)
+        .eq('quiz_session_id', quizSessionId)
+        .order('question_order', { ascending: true });
+  
+      if (questionsError) throw questionsError;
+  
+      // Merge user answers with questions
+      const questionsWithAnswers = questions.map((q: any) => ({
+        ...q,
+        user_answer: q.quiz_answers[0]?.user_answer || '',
+        is_correct: q.quiz_answers[0]?.is_correct || false,
+      }));
+  
+      return {
+        success: true,
+        data: {
+          score: session.score,
+          total: session.total_questions,
+          percentage: session.percentage,
+          questions: questionsWithAnswers,
+        },
+      };
+    } catch (error: any) {
+      console.error('Error fetching quiz results:', error);
+      return { success: false, error: error.message };
+    }
+  }
