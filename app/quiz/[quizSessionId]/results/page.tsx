@@ -276,6 +276,7 @@ export default function QuizResults() {
             })}
           </div>
         </div>
+        </div>
 
         {/* Action Buttons */}
         <div className="bg-white rounded-2xl p-6 shadow-xl border border-slate-100">
@@ -305,6 +306,5 @@ export default function QuizResults() {
           </p>
         </div>
       </div>
-    </div>
   );
 }
