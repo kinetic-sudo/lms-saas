@@ -92,8 +92,8 @@ export default function QuizPage() {
   
       console.log('Quiz submitted:', result);
       
-      // FIX: Remove the extra "result/" from the path
-      router.push(`/quiz/${quizSessionId}/results?score=${result.score}&total=${result.total}&percentage=${result.percentage}`);
+      // Redirect to results page (no query params needed anymore)
+      router.push(`/quiz/${quizSessionId}/results`);
     } catch (err: any) {
       console.error('Error submitting quiz:', err);
       alert('Failed to submit quiz. Please try again.');

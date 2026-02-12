@@ -10,17 +10,19 @@ import { getQuizResults } from '@/lib/action/quiz.action'
 export default function QuizResults() {
   const router = useRouter();
   const params = useParams();
-  const quizId = params.quizId as string;
+  const quizSessionId = params.quizSessionId as string; // FIXED: Match folder name
   
   const [loading, setLoading] = useState(true);
   const [quizData, setQuizData] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
+
 
   useEffect(() => {
     const loadResults = async () => {
       try {
-        const result = await getQuizResults(quizId);
+        const result = await getQuizResults(quizSessionId);
         
-        if (result.success) {
+        if (result.success && result.data) {
           setQuizData(result.data);
           
           // Celebrate if score is good!
@@ -39,10 +41,10 @@ export default function QuizResults() {
       }
     };
 
-    if (quizId) {
+    if (quizSessionId) {
       loadResults();
     }
-  }, [quizId]);
+  }, [quizSessionId]);
 
   if (loading) {
     return (
