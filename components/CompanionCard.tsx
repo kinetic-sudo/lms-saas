@@ -59,8 +59,19 @@ const CompanionCard = ({id, name, topic, subject, duration, color, isBookmarked 
                 {subject}
             </div>
             {!isDummy && (
-              <button className="companion-bookmark">
+              <button 
+              className={`companion-bookmark transition-all ${bookmarked ? 'bg-slate-900' : 'bg-white'} ${isToggling ? 'opacity-50' : ''}`}
+              onClick={handleBookmark} 
+              disabled={isToggling}
+               > 
+               {bookmarked ? (
+                 <svg width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="white" strokeWidth="2">
+                 <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+                 </svg>
+
+               ) : (
                   <Image src="/icons/bookmark.svg" alt="bookmark" width={16} height={16} />
+               )}
               </button>
             )}
         </div>
