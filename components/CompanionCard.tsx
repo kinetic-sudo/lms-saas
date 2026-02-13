@@ -17,8 +17,10 @@ interface CompanionCardProps {
     isBookmarked?: boolean
 }
 
-const CompanionCard = ({id, name, topic, subject, duration, color} : CompanionCardProps) => {
+const CompanionCard = ({id, name, topic, subject, duration, color, isBookmarked = false} : CompanionCardProps) => {
   const isDummy = id.startsWith('dummy-');
+  const [bookmarked, SetBookmarked] = useState(isBookmarked)
+  const [isToggling, SetIsToggling] = useState(false)
 
   return (
     <article 
