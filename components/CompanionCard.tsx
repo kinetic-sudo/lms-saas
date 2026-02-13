@@ -1,5 +1,11 @@
+'use client'
+
 import Link from "next/link"
 import Image from "next/image"
+import { useState } from "react"
+import { toggleBookmark } from "@/lib/action/bookmark.action"
+
+
 
 interface CompanionCardProps {
     id: string
@@ -8,6 +14,7 @@ interface CompanionCardProps {
     subject: string
     duration: number
     color: string
+    isBookmarked?: boolean
 }
 
 const CompanionCard = ({id, name, topic, subject, duration, color} : CompanionCardProps) => {
