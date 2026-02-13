@@ -22,6 +22,23 @@ const CompanionCard = ({id, name, topic, subject, duration, color, isBookmarked 
   const [bookmarked, SetBookmarked] = useState(isBookmarked)
   const [isToggling, SetIsToggling] = useState(false)
 
+  const handleBookmark = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    if (isToggling) return;
+  
+    SetIsToggling(true)
+    const result = await toggleBookmark(id)
+    
+    if (result.success) {
+      SetBookmarked(result.bookmarked)
+    } 
+
+    SetIsToggling(false)
+  }
+
+
   return (
     <article 
       className="companion-card min-w-[300px] relative" 
