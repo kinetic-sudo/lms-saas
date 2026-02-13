@@ -1,7 +1,9 @@
+// app/companion/page.tsx
 import CompanionCard from "@/components/CompanionCard";
 import SearchInput from "@/components/SearchInput";
 import SubjectFilter from "@/components/SubjectFilter";
 import { getAllCompanions } from "@/lib/action/companion.action";
+import { getBookmarkedCompanions, getUserBookmarkIds } from "@/lib/action/bookmark.action";
 import { getSubjectColor } from "@/lib/utils";
 import Link from "next/link";
 
@@ -9,8 +11,14 @@ const CompanionLibrary = async ({ searchParams }: SearchParams) => {
   const filters = await searchParams;
   const subject = filters.subject ? filters.subject : '';
   const topic = filters.topic ? filters.topic : '';
+  const filterBookmarked = filters.filter === 'bookmarked';
 
-  const companions = await getAllCompanions({ subject, topic });
+  const companions = filterBookmarked 
+    ? await getBookmarkedCompanions()
+    : await getAllCompanions({ subject, topic });
+    
+  const bookmarkIds = await getUserBookmarkIds();
+  
   const hasDummyData = companions.some(c => c.id.startsWith('dummy-'));
 
   return (
@@ -18,15 +26,17 @@ const CompanionLibrary = async ({ searchParams }: SearchParams) => {
       {/* Header Section */}
       <section className="flex flex-col gap-6 w-full">
         <div className="flex justify-between items-center">
-            <h1 className="text-3xl font-black tracking-tight">Companion Library</h1>
-            <div className="text-sm text-slate-400 font-bold">
-                {companions.length} Result{companions.length !== 1 && 's'}
-            </div>
+          <h1 className="text-3xl font-black tracking-tight">
+            {filterBookmarked ? 'Bookmarked Companions' : 'Companion Library'}
+          </h1>
+          <div className="text-sm text-slate-400 font-bold">
+            {companions.length} Result{companions.length !== 1 && 's'}
+          </div>
         </div>
         
         {/* Show message for new users */}
         {hasDummyData && (
-          <div className="bg-white border  rounded-2xl p-4 flex items-center justify-between">
+          <div className="bg-white border rounded-2xl p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="bg-black text-white rounded-full p-2">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -37,7 +47,7 @@ const CompanionLibrary = async ({ searchParams }: SearchParams) => {
                 These are sample companions. Create your own to get started!
               </p>
             </div>
-            <Link href="/companion/new" >
+            <Link href="/companion/new">
               <button className="bg-black text-white px-4 py-2 rounded-lg font-bold text-sm ml-3 transition">
                 Create Companion
               </button>
@@ -47,12 +57,14 @@ const CompanionLibrary = async ({ searchParams }: SearchParams) => {
         
         {/* Filter Bar */}
         <div className="flex flex-col md:flex-row gap-4 items-start md:items-center w-full border-b border-slate-100 pb-6">
+          {!filterBookmarked && (
             <div className="w-full md:w-auto">
-                <SubjectFilter />
+              <SubjectFilter />
             </div>
-            <div className="w-full md:w-auto md:ml-auto">
-                <SearchInput />
-            </div>
+          )}
+          <div className="w-full md:w-auto md:ml-auto">
+            <SearchInput />
+          </div>
         </div>
       </section>
 
@@ -61,15 +73,22 @@ const CompanionLibrary = async ({ searchParams }: SearchParams) => {
         {companions.length > 0 ? (
           companions.map((companion) => (
             <CompanionCard 
-                key={companion.id} 
-                {...companion} 
-                color={getSubjectColor(companion.subject)}
+              key={companion.id} 
+              {...companion} 
+              color={getSubjectColor(companion.subject)}
+              isBookmarked={bookmarkIds.includes(companion.id)}
             />
           ))
         ) : (
           <div className="col-span-full flex flex-col items-center justify-center py-20 text-slate-400 gap-2">
-             <p className="text-lg font-bold">No companions found</p>
-             <p className="text-sm">Try adjusting your filters</p>
+            <p className="text-lg font-bold">
+              {filterBookmarked ? 'No bookmarked companions yet' : 'No companions found'}
+            </p>
+            <p className="text-sm">
+              {filterBookmarked 
+                ? 'Start bookmarking companions to see them here' 
+                : 'Try adjusting your filters'}
+            </p>
           </div>
         )}
       </section>

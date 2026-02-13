@@ -13,21 +13,23 @@ import React from 'react'
 const Page = async () => {
   const companions = await getAllCompanions({limit: 3}) 
   const recentSessionsCompanions = await getRecentSessionsForHome(3)
-  const bookmarkedCompanions = await getBookmarkedCompanions(3)
-  const bookmarkIds = await getUserBookmarkIds()
+  const bookmarkedCompanions = await getBookmarkedCompanions(3) // Fetch bookmarks
+  const bookmarkIds = await getUserBookmarkIds() // Get all bookmark IDs
   
   const hasDummyData = companions.some(c => c?.id?.startsWith('dummy-'));
   
   return (
     <main>
-      {/* Bookmarked Section - Show if user has bookmarks */}
+      {/* Bookmarked Companions Section - Show if user has any bookmarks */}
       {bookmarkedCompanions && bookmarkedCompanions.length > 0 && (
         <section>
           <div className="section-header">
             <h2 className="section-title">
               Bookmarked Companions
             </h2>
-            <Link href='/companion?filter=bookmarked' className="section-link">See all</Link>
+            <Link href='/companion?filter=bookmarked' className="section-link">
+              See all
+            </Link>
           </div>
           
           <div className='flex flex-col md:flex-row items-start md:items-center gap-4 overflow-x-auto pb-4 no-scrollbar'>
@@ -43,7 +45,7 @@ const Page = async () => {
         </section>
       )}
 
-      {/* Popular Section */}
+      {/* Popular Companions Section */}
       <section>
         <div className="section-header">
           <h2 className="section-title">
@@ -70,7 +72,7 @@ const Page = async () => {
         </div>
       </section>
       
-      {/* Recent & CTA Section */}
+      {/* Recently Completed & CTA Section */}
       <section className='flex flex-col gap-8'>
         {recentSessionsCompanions && recentSessionsCompanions.length > 0 ? (
           <CompanionList 
