@@ -55,7 +55,16 @@ export async function toggleBookmark(companionId: string) {
   }
 }
 
-export async function getBookmarkedCompanions(limit?: number) {
+export type BookmarkedCompanion = {
+  id: string;
+  name: string;
+  subject: string;
+  topic: string;
+  duration: number;
+  bookmarked_at: string;
+};
+
+export async function getBookmarkedCompanions(limit?: number): Promise<BookmarkedCompanion[]> {
   try {
     const { userId } = await auth();
     if (!userId) return [];
@@ -86,11 +95,23 @@ export async function getBookmarkedCompanions(limit?: number) {
 
     if (error) throw error;
 
-    // Flatten the structure
-    return data?.map(item => ({
-      ...item.companions,
-      bookmarked_at: item.created_at
-    })) || [];
+    // Flatten: Supabase may return companions as object or array
+    const rows: BookmarkedCompanion[] = [];
+    for (const item of data ?? []) {
+      const raw = (item as { companions: unknown }).companions;
+      const companion = Array.isArray(raw) ? raw[0] : raw;
+      if (companion && typeof companion === 'object' && 'id' in companion && 'name' in companion) {
+        rows.push({
+          id: String(companion.id),
+          name: String(companion.name),
+          subject: String(companion.subject),
+          topic: String(companion.topic),
+          duration: Number(companion.duration),
+          bookmarked_at: item.created_at,
+        });
+      }
+    }
+    return rows;
   } catch (error) {
     console.error('Error fetching bookmarks:', error);
     return [];
