@@ -5,7 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import CompanionList from '@/components/CompanionList';
 import { getSubjectColor, cn } from '@/lib/utils';
-import { MessageCircle, Clock, BookOpen, Lock, Award, TrendingUp, CheckCircle2, ChevronRight } from 'lucide-react';
+import { MessageCircle, Clock, BookOpen, Lock, Award, TrendingUp, CheckCircle2, ChevronRight, Bookmark } from 'lucide-react';
 
 interface JourneyTabsProps {
   sessions: any[];
@@ -78,16 +78,16 @@ const JourneyTabs = ({
         </button>
 
         <button
-          onClick={() => setActiveTab('companions')}
+          onClick={() => setActiveTab('bookmarks')}
           className={cn(
             "pb-4 text-sm font-bold transition-all relative",
-            activeTab === 'companions' 
+            activeTab === 'bookmarks' 
               ? "text-black" 
               : "text-slate-400 hover:text-slate-600"
           )}
         >
-          My Companions
-          {activeTab === 'companions' && (
+          <Bookmark size={16} />
+          {activeTab === 'bookmarks' && (
             <span className="absolute bottom-0 left-0 w-full h-0.5 bg-black rounded-t-full" />
           )}
         </button>
