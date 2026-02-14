@@ -21,29 +21,7 @@ const Page = async () => {
   return (
     <main>
       {/* Bookmarked Companions Section - Show if user has any bookmarks */}
-      {bookmarkedCompanions && bookmarkedCompanions.length > 0 && (
-        <section>
-          <div className="section-header">
-            <h2 className="section-title">
-              Bookmarked Companions
-            </h2>
-            <Link href='/companion?filter=bookmarked' className="section-link">
-              See all
-            </Link>
-          </div>
-          
-          <div className='flex flex-col md:flex-row items-start md:items-center gap-4 overflow-x-auto pb-4 no-scrollbar'>
-            {bookmarkedCompanions.map((companion) => (
-              <CompanionCard 
-                key={companion.id}
-                color={getSubjectColor(companion.subject)} 
-                {...companion}
-                isBookmarked={true}
-              />
-            ))}
-          </div>
-        </section>
-      )}
+    
 
       {/* Popular Companions Section */}
       <section>
@@ -90,6 +68,29 @@ const Page = async () => {
           </div>
         )}
         <CTA />
+        {bookmarkedCompanions && bookmarkedCompanions.length > 0 && (
+        <section>
+          <div className="section-header">
+            <h2 className="section-title">
+              Bookmarked Companions
+            </h2>
+            <Link href='/companion?filter=bookmarked' className="section-link">
+              See all
+            </Link>
+          </div>
+          
+          <div className='flex flex-col md:flex-row items-start md:items-center gap-4 overflow-x-auto pb-4 no-scrollbar'>
+            {bookmarkedCompanions.map((companion) => (
+              <CompanionCard 
+                key={companion.id}
+                color={getSubjectColor(companion.subject)} 
+                {...companion}
+                isBookmarked={true}
+              />
+            ))}
+          </div>
+        </section>
+      )}
       </section>
     </main>
   )
