@@ -4,6 +4,7 @@ import { currentUser } from "@clerk/nextjs/server"
 import { redirect } from "next/navigation"
 import Image from "next/image"
 import JourneyTabs from "@/components/JourneyTab" 
+import { getBookmarkedCompanions } from "@/lib/action/bookmark.action"
 
 const Profile = async () => {
   const user = await currentUser()
@@ -16,6 +17,7 @@ const Profile = async () => {
 
   const companions = await getUserCompanion(user.id)
   const sessionHistory = await getUserSessions(user.id)
+  const bookmarkedCompanion = await getBookmarkedCompanions()
 
   // --- 2. FETCH PREMIUM FEATURES ---
   let savedConversations = [];
@@ -84,6 +86,16 @@ const Profile = async () => {
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                     Companions Created
                 </span>
+            </div>
+
+            {/* NEW: Bookmarks stat */}
+            <div className="flex flex-col gap-1">
+              <span className="text-4xl font-black text-purple-500 tracking-tight">
+                {String(bookmarkedCompanion.length).padStart(2, '0')}
+              </span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                Bookmarked
+              </span>
             </div>
 
             {isPro && (
