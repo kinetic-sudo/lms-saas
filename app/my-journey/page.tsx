@@ -116,6 +116,7 @@ const Profile = async () => {
         companions={companions} 
         savedConversations={savedConversations}
         quizHistory={quizHistory}
+        bookmarkedCompanions={bookmarkedCompanion}
         isPro={isPro}
       />
 
