@@ -86,7 +86,7 @@ const JourneyTabs = ({
               : "text-slate-400 hover:text-slate-600"
           )}
         >
-          <Bookmark size={16} />
+          Bookmark
           {activeTab === 'bookmarks' && (
             <span className="absolute bottom-0 left-0 w-full h-0.5 bg-black rounded-t-full" />
           )}
