@@ -310,43 +310,56 @@ const JourneyTabs = ({
 )}
 
       {/* 4. MY COMPANIONS TAB */}
-      {activeTab === 'companions' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {companions.map((companion) => (
-                <Link href={`/companion/${companion.id}`} key={companion.id}>
-                    <article 
-                        className="group flex items-start gap-4 p-6 rounded-[2rem] transition-transform hover:scale-[1.01] cursor-pointer"
-                        style={{ backgroundColor: `${getSubjectColor(companion.subject)}70` }} 
-                    >
-                        <div className="bg-white/60 p-3 rounded-2xl h-fit">
-                            <Image 
-                                src={`/icons/${companion.subject}.svg`} 
-                                alt={companion.subject} 
-                                width={24} 
-                                height={24}
-                            />
-                        </div>
-                        <div className="flex flex-col gap-1 w-full">
-                            <h3 className="font-bold text-lg text-black leading-tight">
-                                {companion.name}
-                            </h3>
-                            <p className="text-xs font-bold text-black uppercase tracking-wide">
-                                {companion.subject}
-                            </p>
-                            <p className="text-sm text-black mt-2 line-clamp-1">
-                                {companion.topic}
-                            </p>
-                        </div>
-                    </article>
-                </Link>
-            ))}
-             {companions.length === 0 && (
-                <div className="col-span-full border-2 border-dashed border-slate-200 rounded-[2rem] p-10 flex flex-col items-center justify-center text-slate-400 gap-2">
-                    <p>No companions created yet.</p>
-                </div>
-            )}
+      {activeTab === 'bookmarks' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          {bookmarkedCompanions.length === 0 ? (
+            <div className="col-span-full py-20 text-center bg-slate-50 rounded-[2rem] border border-dashed border-slate-200">
+              <Bookmark size={48} className="mx-auto text-slate-300 mb-4" />
+              <p className="text-slate-500 font-medium mb-4">No bookmarked companions yet</p>
+              <Link href="/companion" className="text-purple-600 font-bold hover:underline">
+                Browse companions and bookmark your favorites
+              </Link>
+            </div>
+          ) : (
+            bookmarkedCompanions.map((companion) => (
+              <Link href={`/companion/${companion.id}`} key={companion.id}>
+                <article 
+                  className="group flex items-start gap-4 p-6 rounded-[2rem] border-2 border-transparent hover:border-purple-200 transition-all cursor-pointer"
+                  style={{ backgroundColor: `${getSubjectColor(companion.subject)}70` }} 
+                >
+                  <div className="bg-white/60 p-3 rounded-2xl h-fit">
+                    <Image 
+                      src={`/icons/${companion.subject}.svg`} 
+                      alt={companion.subject} 
+                      width={24} 
+                      height={24}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1 w-full">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-bold text-lg text-black leading-tight">
+                        {companion.name}
+                      </h3>
+                      <Bookmark size={18} className="text-purple-600" fill="currentColor" />
+                    </div>
+                    <p className="text-xs font-bold text-black/70 uppercase tracking-wide">
+                      {companion.subject}
+                    </p>
+                    <p className="text-sm text-black/80 mt-2 line-clamp-1">
+                      {companion.topic}
+                    </p>
+                    <div className="flex items-center gap-2 mt-3 text-xs text-black/60">
+                      <Clock size={14} />
+                      <span>{companion.duration} minutes</span>
+                    </div>
+                  </div>
+                </article>
+              </Link>
+            ))
+          )}
         </div>
       )}
+
 
     </div>
   );
