@@ -12,6 +12,7 @@ interface JourneyTabsProps {
   companions: any[];
   savedConversations: any[];
   quizHistory: any[];
+  bookmarkedCompanions: any[]; 
   isPro: boolean;
 }
 
@@ -20,9 +21,10 @@ const JourneyTabs = ({
   companions, 
   savedConversations, 
   quizHistory,
-  isPro 
+  isPro,
+  bookmarkedCompanions, 
 }: JourneyTabsProps) => {
-  const [activeTab, setActiveTab] = useState<'sessions' | 'saved' | 'quizzes' | 'companions'>('sessions');
+  const [activeTab, setActiveTab] = useState<'sessions' | 'saved' | 'quizzes' | 'bookmarks'>('sessions');
 
   return (
     <div className="flex flex-col gap-8">
