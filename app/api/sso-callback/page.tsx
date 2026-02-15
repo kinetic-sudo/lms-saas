@@ -13,7 +13,10 @@ export default function SSOCallback() {
   useEffect(() => {
     const complete = async () => {
       try {
-        await handleRedirectCallback()
+        await handleRedirectCallback(
+          { signInFallbackRedirectUrl: '/', signUpFallbackRedirectUrl: '/' },
+          (to) => Promise.resolve(router.push(to))
+        )
         router.push('/')
       } catch (error) {
         console.error('SSO error:', error)
