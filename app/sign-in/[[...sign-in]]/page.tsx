@@ -1,4 +1,4 @@
-// app/sign-in/page.tsx
+// app/sign-in/[[...sign-in]]/page.tsx
 'use client'
 
 import { useSignIn } from '@clerk/nextjs'
@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
+import { Mail, Lock, Loader2 } from 'lucide-react'
 
 export default function CustomSignIn() {
   const { isLoaded, signIn, setActive } = useSignIn()
@@ -33,7 +34,7 @@ export default function CustomSignIn() {
         router.push('/')
       }
     } catch (err: any) {
-      console.error('Error:', err)
+      console.error('Sign-in error:', err)
       setError(err.errors?.[0]?.message || 'Invalid email or password')
     } finally {
       setIsLoading(false)
@@ -51,17 +52,26 @@ export default function CustomSignIn() {
       })
     } catch (err) {
       console.error('OAuth error:', err)
+      setError('Failed to sign in with Google')
     }
+  }
+
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+      </div>
+    )
   }
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         
-        {/* Logo */}
+        {/* Logo & Title */}
         <div className="text-center mb-8">
           <Link href="/" className="inline-block">
-            <div className="flex items-center gap-2 justify-center mb-4">
+            <div className="flex items-center gap-2.5 justify-center mb-4 opacity-90 hover:opacity-100 transition-opacity">
               <Image 
                 src="/images/logo.svg"
                 alt="SkillForge" 
@@ -71,7 +81,7 @@ export default function CustomSignIn() {
               <span className="font-bold text-2xl tracking-tight">SkillForge</span>
             </div>
           </Link>
-          <h1 className="text-2xl font-black text-slate-900 mb-2">
+          <h1 className="text-3xl font-black text-slate-900 mb-2">
             Welcome Back
           </h1>
           <p className="text-slate-600">
@@ -80,12 +90,13 @@ export default function CustomSignIn() {
         </div>
 
         {/* Sign In Card */}
-        <div className="bg-white rounded-3xl shadow-xl border border-slate-200 p-8">
+        <div className="bg-white rounded-[2rem] shadow-xl border border-slate-200 p-8">
           
           {/* Google Sign In */}
           <button
             onClick={signInWithGoogle}
-            className="w-full flex items-center justify-center gap-3 bg-white border-2 border-slate-200 py-3.5 rounded-xl font-bold text-slate-700 hover:bg-slate-50 transition-all mb-6"
+            disabled={isLoading}
+            className="w-full flex items-center justify-center gap-3 bg-white border-2 border-slate-200 py-3.5 rounded-xl font-bold text-slate-700 hover:bg-slate-50 transition-all mb-6 disabled:opacity-50"
           >
             <svg width="20" height="20" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -118,46 +129,49 @@ export default function CustomSignIn() {
               <label className="block text-sm font-bold text-slate-700 mb-2">
                 Email address
               </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Enter your email"
-                required
-                className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-black focus:outline-none transition-colors"
-              />
+              <div className="relative">
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Enter your email"
+                  required
+                  className="w-full pl-12 pr-4 py-3 border-2 border-slate-200 rounded-xl focus:border-black focus:outline-none transition-colors"
+                />
+              </div>
             </div>
 
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-2">
                 Password
               </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
-                required
-                className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-black focus:outline-none transition-colors"
-              />
-            </div>
-
-            <div className="flex items-center justify-between text-sm">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className="rounded" />
-                <span className="text-slate-600">Remember me</span>
-              </label>
-              <Link href="/forgot-password" className="text-black font-bold hover:underline">
-                Forgot password?
-              </Link>
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  required
+                  className="w-full pl-12 pr-4 py-3 border-2 border-slate-200 rounded-xl focus:border-black focus:outline-none transition-colors"
+                />
+              </div>
             </div>
 
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-black text-white py-3.5 rounded-xl font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
+              className="w-full bg-black text-white py-3.5 rounded-xl font-bold hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              {isLoading ? 'Signing in...' : 'Sign in'}
+              {isLoading ? (
+                <>
+                  <Loader2 className="animate-spin" size={18} />
+                  Signing in...
+                </>
+              ) : (
+                'Sign in'
+              )}
             </button>
           </form>
 
@@ -173,9 +187,9 @@ export default function CustomSignIn() {
         {/* Footer */}
         <p className="text-center text-xs text-slate-500 mt-6">
           By signing in, you agree to our{' '}
-          <Link href="/terms" className="underline">Terms</Link>
+          <Link href="/terms" className="underline hover:text-slate-700">Terms</Link>
           {' '}and{' '}
-          <Link href="/privacy" className="underline">Privacy Policy</Link>
+          <Link href="/privacy" className="underline hover:text-slate-700">Privacy Policy</Link>
         </p>
       </div>
     </main>
